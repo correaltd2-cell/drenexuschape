@@ -2,6 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
+<meta name="color-scheme" content="light">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Indicadores Nexus Chapecó</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13,21 +14,8 @@
   --ink:#17202E;--inkText:#C3CAD6;
   --orange:#EE6A1F;--orangeSoft:#FDF0E8;--pos:#1D7F55;--posSoft:#DCF0E5;--neg:#BE3F2B;--negSoft:#F7E0DA;--warn:#9A6410;--warnSoft:#F7EDD6;
   --info:#5566CC;--focus:#2E6BE6;--shadow:0 1px 2px rgba(16,24,40,.04);
+  color-scheme:light;
   box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
-}
-@media (prefers-color-scheme:dark){
-  :root:not([data-theme="light"]){
-    --bg:#10141B;--surface:#181E28;--sunk:#1E2531;--zebra:#1B212C;--line:#283042;--text:#E6E9EF;--muted:#98A1B1;
-    --ink:#0C1017;--inkText:#AEB6C4;
-    --orangeSoft:#35231A;--posSoft:#15301F;--negSoft:#3A1C17;--warnSoft:#33280F;--pos:#3DB07E;--neg:#E36A55;--warn:#D9A13F;
-    --info:#8C9BF0;--focus:#7FA6FF;--shadow:0 1px 2px rgba(0,0,0,.25);
-  }
-}
-:root[data-theme="dark"]{
-  --bg:#10141B;--surface:#181E28;--sunk:#1E2531;--zebra:#1B212C;--line:#283042;--text:#E6E9EF;--muted:#98A1B1;
-  --ink:#0C1017;--inkText:#AEB6C4;
-  --orangeSoft:#35231A;--posSoft:#15301F;--negSoft:#3A1C17;--warnSoft:#33280F;--pos:#3DB07E;--neg:#E36A55;--warn:#D9A13F;
-  --info:#8C9BF0;--focus:#7FA6FF;--shadow:0 1px 2px rgba(0,0,0,.25);
 }
 *,*::before,*::after{box-sizing:inherit}
 html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 96px)}
@@ -71,6 +59,7 @@ select.sel{height:36px;border-radius:9px;border:1px solid var(--line);background
 
 h2{font-size:16px;margin:0;font-weight:700;letter-spacing:-.01em}
 .sub{color:var(--muted);font-size:14px;margin:0;max-width:80ch}
+.view>*+.sub{margin-top:16px}
 .btn{height:40px;padding:0 16px;border-radius:10px;border:0;background:var(--sunk);cursor:pointer;font-weight:600;font-size:14px;white-space:nowrap}
 .btn:hover{filter:brightness(.97)}
 .btn.pri{background:var(--orange);color:#fff}
