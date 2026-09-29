@@ -183,6 +183,20 @@ label.btn{display:inline-flex;align-items:center}
 .empty h2{font-size:18px;margin-bottom:6px}
 .empty p{color:var(--muted);margin:0 auto 18px;max-width:52ch}
 
+/* tipo de relatório */
+.tipo{border:0;padding:0;margin:0 0 16px;min-width:0}
+.tipo legend,.qlab{font-size:14px;font-weight:600;margin:0 0 8px;padding:0;display:block}
+.opts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.opt{display:flex;gap:10px;align-items:flex-start;padding:14px 16px;border-radius:12px;border:1px solid var(--line);cursor:pointer}
+.opt:has(input:checked){border-color:var(--text);background:var(--zebra)}
+.opt input{margin:3px 0 0;accent-color:var(--text);flex:none}
+.opt b{display:block;font-size:14.5px}
+.opt small{display:block;color:var(--muted);font-size:13px}
+.qmes{margin:0 0 18px}
+.qmes select{min-width:240px}
+.drop.off{opacity:.55}
+@media (max-width:560px){.opts{grid-template-columns:1fr}.qmes select{min-width:0;width:100%}}
+
 /* gráfico */
 .chips{display:flex;gap:6px;flex-wrap:wrap}
 .chip{height:34px;padding:0 13px;border-radius:17px;border:0;background:var(--sunk);cursor:pointer;font-size:13.5px;font-weight:500}
@@ -269,9 +283,17 @@ const MESL=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agost
 const GRUPOS=[['rec','Receitas'],['cv','Custos variáveis'],['df','Despesas fixas'],['inv','Investimentos'],['mno','Movimentações não operacionais']];
 const K_MESES='nexus.meses.v1';
 let MESES=[];try{MESES=JSON.parse(localStorage.getItem(K_MESES))||[]}catch(e){MESES=[]}
-function indexMeses(){MESES.sort((a,b)=>a.y-b.y||a.m-b.m).forEach((d,i)=>{d.i=i;d.key=d.y+'-'+String(d.m+1).padStart(2,'0')})}
+const TIPOS={venc:['Vencimentos','Previsto'],pag:['Pagamentos','Realizado']};
+function prep(d){
+ // registros antigos (antes da escolha de tipo) são tratados como pagamentos
+ if(d.dre&&!d.venc&&!d.pag)d.pag={dre:d.dre,gerado:d.gerado,parcial:d.parcial,unidade:d.unidade,resEllo:d.resEllo};
+ const r=d.pag||d.venc;d.base=d.pag?'pag':'venc';
+ Object.assign(d,{dre:r.dre,gerado:r.gerado,parcial:r.parcial,unidade:r.unidade,resEllo:r.resEllo});
+}
+const plain=()=>MESES.map(d=>({y:d.y,m:d.m,venc:d.venc,pag:d.pag}));
+function indexMeses(){MESES.forEach(prep);MESES.sort((a,b)=>a.y-b.y||a.m-b.m).forEach((d,i)=>{d.i=i;d.key=d.y+'-'+String(d.m+1).padStart(2,'0')})}
 indexMeses();
-function saveMeses(){try{localStorage.setItem(K_MESES,JSON.stringify(MESES.map(({i,key,...d})=>d)));return true}catch(e){return false}}
+function saveMeses(){try{localStorage.setItem(K_MESES,JSON.stringify(plain()));return true}catch(e){return false}}
 
 /* ---------- leitura do DRE do ELLO ----------
    O arquivo .xls do ELLO é uma página HTML. As linhas de resumo têm 3 colunas (conta, valor, %);
@@ -391,7 +413,7 @@ function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('show');cl
 /* ---------- estado e navegação ---------- */
 const TABS=[['resumo','Resumo'],['dre','DRE'],['ind','Indicadores']];
 function savedTab(){try{const t=localStorage.getItem('nexus.mesTab');return TABS.some(([k])=>k===t)?t:'resumo'}catch(e){return 'resumo'}}
-const S={view:MESES.length?'mes':'imp',mi:MESES.length-1,imp:null,mesTab:savedTab(),open:new Set(['rec']),gOpen:new Set(['alu','fin']),metric:'fat'};
+const S={view:MESES.length?'mes':'imp',mi:MESES.length-1,imp:null,impTipo:null,impMes:'',mesTab:savedTab(),open:new Set(['rec']),gOpen:new Set(['alu','fin']),metric:'fat'};
 const views=()=>NAV.filter(([k])=>k!=='evo'||MESES.length>1);
 const esc=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function nav(){
@@ -435,11 +457,16 @@ function rMes(){
  if(!MESES.length){$('#v-mes').innerHTML=emptyHtml('Importe o DRE do ELLO para ver margem, faturamento, lucro e o DRE do mês.');return}
  const d=MESES[S.mi],p=MESES[S.mi-1];
  let h='';
- if(!hasMan(d))h+=`<button class="nextstep" data-go="man"><span class="nsdot" aria-hidden="true"></span><span>Próximo passo: preencher os indicadores manuais de ${MESL[d.m].toLowerCase()}</span><span class="nsgo" aria-hidden="true">›</span></button>`;
- h+=`<p class="sub">${d.parcial?`Mês em andamento. Números do DRE do ELLO gerado em ${d.gerado}.`:`Mês fechado. DRE do ELLO gerado em ${d.gerado}.`}</p>`;
+ const ml=MESL[d.m].toLowerCase(),falta=!d.pag?'pag':!d.venc?'venc':null;
+ const strip=(attr,t)=>`<button class="nextstep" ${attr}><span class="nsdot" aria-hidden="true"></span><span>Próximo passo: ${t}</span><span class="nsgo" aria-hidden="true">›</span></button>`;
+ if(falta)h+=strip(`data-imp-tipo="${falta}"`,`importar os ${TIPOS[falta][0].toLowerCase()} de ${ml}`);
+ else if(!hasMan(d))h+=strip('data-go="man"',`preencher os indicadores manuais de ${ml}`);
+ const ger=r=>esc(r.gerado||'data não informada');
+ h+=`<p class="sub">${d.pag&&d.pag.parcial?'Mês em andamento. ':''}${d.venc&&d.pag?`Previsto: vencimentos gerados em ${ger(d.venc)}. Realizado: pagamentos gerados em ${ger(d.pag)}.`:d.venc?`Só o relatório de vencimentos foi importado (gerado em ${ger(d.venc)}), então os números abaixo são o previsto.`:`Realizado: pagamentos gerados em ${ger(d.pag)}. Falta o relatório de vencimentos para comparar com o previsto.`}</p>`;
  const body=S.mesTab==='dre'?dreHtml(d):S.mesTab==='ind'?indHtml(d,p):resumoHtml(d,p);
  h+=`<div id="mesPanel" role="tabpanel" aria-labelledby="tab-${S.mesTab}">${body}</div>`;
  $('#v-mes').innerHTML=h;
+ const ni=$('[data-imp-tipo]');if(ni)ni.onclick=()=>{S.impTipo=ni.dataset.impTipo;S.impMes=d.key;S.imp=null;go('imp')};
  document.querySelectorAll('tr.grp .rowbtn').forEach(b=>b.onclick=()=>{const g=b.closest('tr').dataset.g;S.open.has(g)?S.open.delete(g):S.open.add(g);rMes();$(`tr[data-g="${g}"] .rowbtn`).focus()});
  document.querySelectorAll('.gbtn').forEach(b=>b.onclick=()=>{const c=b.closest('.gcard'),k=c.dataset.k,on=!c.classList.contains('open');
   c.classList.toggle('open',on);b.setAttribute('aria-expanded',on);on?S.gOpen.add(k):S.gOpen.delete(k)});
@@ -448,29 +475,32 @@ function barsHtml(rows,fat){
  const mx=Math.max(...rows.map(r=>r[1]),1);
  return `<div class="bars">${rows.map(([n,v])=>`<div class="bar"><span class="bl">${n}</span><span class="bv num">${brl0(v)}<small>${pct(v/fat)}</small></span><div class="track" aria-hidden="true"><i style="width:${v/mx*100}%"></i></div></div>`).join('')}</div>`;
 }
-function resumoHtml(d,p){
+function resumoHtml(d,p0){
+ const p=p0&&p0.base===d.base?p0:null,prev=d.base==='venc';
  const fat=fatOp(d),lo=lucroOp(d),mg=margem(d),rf=resultado(d);
  const pos=Math.max(0,Math.min(30,mg*100))/30*100;
  let h=`<div class="kpis">
-  <div class="kpi hero"><div class="lab">Margem líquida operacional</div><div class="val num">${pct(mg)}</div>${p?delta(mg,margem(p),'up','pct'):''}
+  <div class="kpi hero"><div class="lab">Margem líquida operacional${prev?' prevista':''}</div><div class="val num">${pct(mg)}</div>${p?delta(mg,margem(p),'up','pct'):''}
    <div class="band" aria-hidden="true"><i style="left:${pos}%"></i></div><div class="bandlab"><span>0%</span><span>meta 10%</span><span>15%</span><span>ideal 20%</span><span>30%</span></div></div>
-  <div class="kpi"><div class="lab">Faturamento</div><div class="val num">${brl0(fat)}</div>${p?delta(fat,fatOp(p),'up'):''}</div>
-  <div class="kpi"><div class="lab">Lucro operacional</div><div class="val num ${lo<0?'neg':''}">${brl0(lo)}</div>${p?delta(lo,lucroOp(p),'up'):'<div class="note">Antes de investimentos e saídas não operacionais</div>'}</div>
-  <div class="kpi"><div class="lab">Resultado final</div><div class="val num ${rf<0?'neg':''}">${brl0(rf)}</div>${p?delta(rf,resultado(p),'up'):d.resEllo!=null&&Math.abs(d.resEllo-rf)<.01?'<div class="note">Confere com o resultado do ELLO</div>':''}</div>
+  <div class="kpi"><div class="lab">Faturamento${prev?' previsto':''}</div><div class="val num">${brl0(fat)}</div>${p?delta(fat,fatOp(p),'up'):''}${d.venc&&d.pag?`<div class="note">Previsto ${brl0(fatOp(d.venc))}, ${pct(fat/fatOp(d.venc))} recebido</div>`:''}</div>
+  <div class="kpi"><div class="lab">Lucro operacional${prev?' previsto':''}</div><div class="val num ${lo<0?'neg':''}">${brl0(lo)}</div>${p?delta(lo,lucroOp(p),'up'):'<div class="note">Antes de investimentos e saídas não operacionais</div>'}</div>
+  <div class="kpi"><div class="lab">Resultado final${prev?' previsto':''}</div><div class="val num ${rf<0?'neg':''}">${brl0(rf)}</div>${p?delta(rf,resultado(p),'up'):d.resEllo!=null&&Math.abs(d.resEllo-rf)<.01?'<div class="note">Confere com o resultado do ELLO</div>':''}</div>
  </div>`;
  const rec=d.dre.rec.map(s=>[s[0],subTot(s)]).sort((a,b)=>b[1]-a[1]);
  const desp=['cv','df','inv','mno'].flatMap(g=>d.dre[g].map(s=>[s[0],subTot(s)])).sort((a,b)=>b[1]-a[1]).slice(0,6);
- h+=`<div class="grid2"><div class="panel"><div class="phead"><h2>De onde veio a receita</h2><span class="tag auto">Automático</span></div>${barsHtml(rec,fat)}</div>
- <div class="panel"><div class="phead"><h2>Para onde foi o dinheiro</h2><span class="tag auto">Automático</span></div>${barsHtml(desp,fat)}</div></div>`;
+ h+=`<div class="grid2"><div class="panel"><div class="phead"><h2>${prev?'De onde vem a receita prevista':'De onde veio a receita'}</h2><span class="tag auto">Automático</span></div>${barsHtml(rec,fat)}</div>
+ <div class="panel"><div class="phead"><h2>${prev?'Para onde vai o dinheiro':'Para onde foi o dinheiro'}</h2><span class="tag auto">Automático</span></div>${barsHtml(desp,fat)}</div></div>`;
  h+=`<div class="panel reading"><div class="phead"><h2>Leitura do mês</h2><span class="tag auto">Calculada a partir do DRE</span></div>${leitura(d)}</div>`;
  return h;
 }
 function leitura(d){
  const fat=fatOp(d),mg=margem(d),lo=lucroOp(d);
  const faixa=mg<.10?'abaixo da meta mínima de 10%':mg<.15?'na faixa aceitável, entre 10% e 15%':mg<.20?'na faixa média, entre 15% e 20%':'acima da meta ideal de 20%';
- const L=[`${MESL[d.m]}${d.parcial?' (até '+d.gerado.slice(0,5)+')':''} faturou ${brl0(fat)} e teve lucro operacional de ${brl0(lo)}, margem de ${pct(mg)}, ${faixa}.`];
+ const L=[d.base==='venc'?`Pelo relatório de vencimentos, ${MESL[d.m].toLowerCase()} tem previsto faturar ${brl0(fat)}, com lucro operacional de ${brl0(lo)} e margem de ${pct(mg)}, ${faixa}.`:`${MESL[d.m]}${d.parcial&&d.gerado?' (até '+d.gerado.slice(0,5)+')':''} faturou ${brl0(fat)} e teve lucro operacional de ${brl0(lo)}, margem de ${pct(mg)}, ${faixa}.`];
  if(G(d,'inv')+G(d,'mno'))L.push(`Depois de ${brl0(G(d,'inv'))} em investimentos e ${brl0(G(d,'mno'))} em saídas não operacionais, o resultado final ficou em ${brl0(resultado(d))}.`);
  const pts=[];
+ if(d.venc&&d.pag){const fv=fatOp(d.venc),fp=fatOp(d.pag),mv=SG(d.venc,'rec','Mensalidades'),mp=SG(d.pag,'rec','Mensalidades');
+  pts.push(`Das receitas previstas nos vencimentos (${brl0(fv)}), entraram ${brl0(fp)}, ou ${pct(fp/fv)}.${mv>mp?` Em mensalidades, ficaram ${brl0(mv-mp)} sem receber.`:''}`)}
  const rec=d.dre.rec.map(s=>[s[0],subTot(s)]).sort((a,b)=>b[1]-a[1]);
  pts.push(`${rec[0][0]} responderam por ${pct(rec[0][1]/fat)} da receita${rec[1]?` e ${rec[1][0].toLowerCase()} por ${pct(rec[1][1]/fat)}`:''}.`);
  const pes=SG(d,'df','Pessoal');
@@ -481,9 +511,10 @@ function leitura(d){
  return `<p>${L.join(' ')}</p><ul>${pts.map(x=>`<li>${x}</li>`).join('')}</ul>`;
 }
 function dreHtml(d){
+ if(d.venc&&d.pag)return dreCmp(d);
  const fat=fatOp(d);
  const cell=v=>`<td>${brl(v)}</td><td class="mut">${pct(v/fat)}</td>`;
- let h=`<div class="panel"><div class="phead"><h2>DRE</h2><span class="tag auto">ELLO</span></div><div class="tscroll"><table class="num dre"><thead><tr><th>Conta</th><th>Valor</th><th>% do faturamento</th></tr></thead><tbody>`;
+ let h=`<div class="panel"><div class="phead"><h2>DRE</h2><span class="tag auto">ELLO</span></div><div class="tscroll"><table class="num dre"><thead><tr><th>Conta</th><th>${TIPOS[d.base][1]}</th><th>% do faturamento</th></tr></thead><tbody>`;
  GRUPOS.forEach(([g,n])=>{
   const on=S.open.has(g);
   h+=`<tr class="grp ${on?'open':''}" data-g="${g}"><td><button class="rowbtn" aria-expanded="${on}">${n}</button></td>${cell(G(d,g))}</tr>`;
@@ -495,7 +526,26 @@ function dreHtml(d){
  h+=`<tr class="tot"><td>Resultado final</td><td class="${rf<0?'neg':''}">${brl(rf)}</td><td class="mut">${pct(rf/fat)}</td></tr></tbody></table></div></div>`;
  return h;
 }
-function indHtml(d,p){
+// previsto (vencimentos) x realizado (pagamentos), com a união das contas dos dois relatórios
+function dreCmp(d){
+ const V=d.venc,P=d.pag,fat=fatOp(P),uniq=a=>[...new Set(a)];
+ const sgs=g=>uniq([V,P].flatMap(r=>(r.dre[g]||[]).map(x=>x[0])));
+ const its=(g,sg)=>uniq([V,P].flatMap(r=>((r.dre[g]||[]).find(x=>x[0]===sg)||[,[]])[1].map(x=>x[0])));
+ const iv=(r,g,sg,k)=>{const s=(r.dre[g]||[]).find(x=>x[0]===sg),it=s&&s[1].find(x=>x[0]===k);return it?it[1]:0};
+ const cells=(pv,rv,sign)=>{const df=rv-pv,c=Math.abs(df)<.005?'':((df>=0)===(sign>0)?'pos':'neg');return `<td>${brl(pv)}</td><td>${brl(rv)}</td><td class="${c}">${Math.abs(df)<.005?'':(df>0?'+':'')+brl(df)}</td><td class="mut">${pct(rv/fat)}</td>`};
+ let h=`<div class="panel"><div class="phead"><h2>DRE previsto x realizado</h2><span class="tag auto">ELLO</span></div><div class="tscroll"><table class="num dre"><thead><tr><th>Conta</th><th>Previsto</th><th>Realizado</th><th>Diferença</th><th>% do faturamento</th></tr></thead><tbody>`;
+ GRUPOS.forEach(([g,n])=>{
+  const on=S.open.has(g),sign=g==='rec'?1:-1;
+  h+=`<tr class="grp ${on?'open':''}" data-g="${g}"><td><button class="rowbtn" aria-expanded="${on}">${n}</button></td>${cells(G(V,g),G(P,g),sign)}</tr>`;
+  if(on)sgs(g).forEach(sg=>{h+=`<tr class="sg"><td>${esc(sg)}</td>${cells(SG(V,g,sg),SG(P,g,sg),sign)}</tr>`;
+   its(g,sg).forEach(k=>h+=`<tr class="it ${k===SEM_DET?'flag':''}"><td>${esc(k)}</td>${cells(iv(V,g,sg,k),iv(P,g,sg,k),sign)}</tr>`)});
+  if(g==='df')h+=`<tr class="tot"><td>Lucro operacional</td>${cells(lucroOp(V),lucroOp(P),1)}</tr>`;
+ });
+ h+=`<tr class="tot"><td>Resultado final</td>${cells(resultado(V),resultado(P),1)}</tr></tbody></table></div></div>`;
+ return h;
+}
+function indHtml(d,p0){
+ const p=p0&&p0.base===d.base?p0:null;
  const M=man(d),PM=p?man(p):{};
  const n=(o,k)=>o[k]==null||o[k]===''?null:+o[k];
  const alunosFim=o=>{const a=[n(o,'ini'),n(o,'novos'),n(o,'cancel'),n(o,'concl')];return a.some(x=>x==null)?null:a[0]+a[1]-a[2]-a[3]};
@@ -505,7 +555,8 @@ function indHtml(d,p){
  const P=f=>p?f:null;
  const groups=[
   ['alu','Alunos','man',[['Alunos no início do mês',n(M,'ini'),P(n(PM,'ini')),'up','int'],['Novos alunos',n(M,'novos'),P(n(PM,'novos')),'up','int'],['Cancelados',n(M,'cancel'),P(n(PM,'cancel')),'down','int'],['Concluíram o curso',n(M,'concl'),P(n(PM,'concl')),null,'int'],['Renovaram',n(M,'renov'),P(n(PM,'renov')),'up','int'],['Alunos no fim do mês',af,P(alunosFim(PM)),'up','int'],['Evasão',evas(M),P(evas(PM)),'down','pct']],6],
-  ['fin','Financeiros','auto',[['Faturamento',fat,P(p&&fatOp(p)),'up','brl'],['Mensalidades',SG(d,'rec','Mensalidades'),P(p&&SG(p,'rec','Mensalidades')),'up','brl'],['Cursos à vista',SG(d,'rec','Cursos à vista'),P(p&&SG(p,'rec','Cursos à vista')),'up','brl'],['Materiais',SG(d,'rec','Materiais'),P(p&&SG(p,'rec','Materiais')),'up','brl'],['Receita por aluno ativo',af?fat/af:null,null,null,'brl'],['Pessoal sobre o faturamento',SG(d,'df','Pessoal')/fat,P(p&&SG(p,'df','Pessoal')/fatOp(p)),'down','pct'],['Aluguel sobre o faturamento',IT(d,'Aluguel')/fat,P(p&&IT(p,'Aluguel')/fatOp(p)),'down','pct']],5],
+  ['fin','Financeiros','auto',[['Faturamento',fat,P(p&&fatOp(p)),'up','brl'],['Mensalidades',SG(d,'rec','Mensalidades'),P(p&&SG(p,'rec','Mensalidades')),'up','brl'],['Cursos à vista',SG(d,'rec','Cursos à vista'),P(p&&SG(p,'rec','Cursos à vista')),'up','brl'],['Materiais',SG(d,'rec','Materiais'),P(p&&SG(p,'rec','Materiais')),'up','brl'],['Receita por aluno ativo',af?fat/af:null,null,null,'brl'],['Pessoal sobre o faturamento',SG(d,'df','Pessoal')/fat,P(p&&SG(p,'df','Pessoal')/fatOp(p)),'down','pct'],['Aluguel sobre o faturamento',IT(d,'Aluguel')/fat,P(p&&IT(p,'Aluguel')/fatOp(p)),'down','pct'],
+   ...(d.venc&&d.pag?[['Receita prevista (vencimentos)',fatOp(d.venc),null,null,'brl'],['Recebido sobre o previsto',fatOp(d.pag)/fatOp(d.venc),null,null,'pct'],['Mensalidades previstas não recebidas',Math.max(0,SG(d.venc,'rec','Mensalidades')-SG(d.pag,'rec','Mensalidades')),null,null,'brl']]:[])],5],
   ['com','Comerciais','man',[['Leads de campanha',n(M,'lCamp'),P(n(PM,'lCamp')),'up','int'],['Leads orgânicos',n(M,'lOrg'),P(n(PM,'lOrg')),'up','int'],['Leads de indicação',n(M,'lInd'),P(n(PM,'lInd')),'up','int'],['Leads no total',leads(M),P(leads(PM)),'up','int'],['Conversão de leads',leads(M)&&n(M,'novos')!=null?n(M,'novos')/leads(M):null,null,null,'pct'],['Investimento em marketing',mk,P(p&&SG(p,'inv','Marketing')),null,'brl'],['Custo por aluno novo (CAC)',n(M,'novos')?mk/n(M,'novos'):null,null,null,'brl']],3],
   ['sat','Satisfação dos clientes','man',[['Recepção',n(M,'sRec'),P(n(PM,'sRec')),'up','n5'],['Professores',n(M,'sProf'),P(n(PM,'sProf')),'up','n5'],['Administrativo',n(M,'sAdm'),P(n(PM,'sAdm')),'up','n5'],['Experiência geral',n(M,'sExp'),P(n(PM,'sExp')),'up','n5'],['Probabilidade de indicar',n(M,'sInd'),P(n(PM,'sInd')),'up','n10'],['Ambiente da escola',n(M,'sAmb'),P(n(PM,'sAmb')),'up','n5']],3],
   ['ig','Instagram','man',[['Seguidores',n(M,'igSeg'),P(n(PM,'igSeg')),'up','int'],['Contas alcançadas',n(M,'igAlc'),P(n(PM,'igAlc')),'up','int'],['Contas com engajamento',n(M,'igEng'),P(n(PM,'igEng')),'up','int']],0]
@@ -524,15 +575,23 @@ function rImp(){
  const lista=MESES.slice().reverse();
  let h=`<p class="sub">Cada mês entra pelo DRE exportado do ELLO. O app lê só os totais por conta; nomes de alunos e fornecedores do arquivo não são guardados.</p>
  <div class="panel"><div class="phead"><h2>Importar DRE do ELLO</h2></div>
-  <ol class="steps"><li>No ELLO, abra Relatórios gerenciais, Financeiro, DRE.</li><li>Escolha o mês e exporte para Excel.</li><li>Envie o arquivo aqui. Pode importar de novo o mesmo mês para atualizar.</li></ol>
-  <div class="drop" id="drop"><p>Arraste o arquivo para cá ou escolha no computador.</p><label class="btn pri" for="impF">Escolher arquivo</label><input type="file" id="impF" accept=".xls,.xlsx,.html,.htm"></div>
+  <ol class="steps"><li>No ELLO, abra Relatórios gerenciais, Financeiro, DRE.</li><li>Gere o relatório do mês por vencimento ou por pagamento e exporte para Excel.</li><li>Aqui, diga qual dos dois é, confira o mês e envie o arquivo. Pode importar de novo para atualizar.</li></ol>
+  <fieldset class="tipo"><legend>1. O que você está importando?</legend><div class="opts">
+   <label class="opt"><input type="radio" name="tipo" value="venc" ${S.impTipo==='venc'?'checked':''}><span><b>Relatório de vencimentos</b><small>O que estava previsto receber e pagar no mês. Vira o previsto.</small></span></label>
+   <label class="opt"><input type="radio" name="tipo" value="pag" ${S.impTipo==='pag'?'checked':''}><span><b>Relatório de pagamentos</b><small>O que de fato entrou e saiu no mês. Vira o realizado.</small></span></label>
+  </div></fieldset>
+  <div class="qmes"><label class="qlab" for="impMes">2. De qual mês?</label><select class="sel" id="impMes">${mesOpts()}</select></div>
+  <p class="qlab">3. Envie o arquivo</p>
+  <div class="drop ${S.impTipo?'':'off'}" id="drop"><p>${S.impTipo?'Arraste o arquivo para cá ou escolha no computador.':'Escolha primeiro se é o relatório de vencimentos ou de pagamentos.'}</p><label class="btn pri" for="impF">Escolher arquivo</label><input type="file" id="impF" accept=".xls,.xlsx,.html,.htm"></div>
  </div>
  <div id="impPrev"></div>`;
- if(lista.length)h+=`<div class="panel"><div class="phead"><h2>Meses importados</h2></div><div class="mlist">${lista.map(d=>`<div class="mrow"><div><b>${label(d)}</b>${d.parcial?' <span class="tag man">Parcial</span>':''}<small>Faturamento ${brl0(fatOp(d))}, resultado ${brl0(resultado(d))}. Gerado no ELLO em ${esc(d.gerado||'data não informada')}.</small></div><div class="actions"><button class="btn" data-ver="${d.i}">Ver mês</button><button class="btn" data-del="${d.i}">Remover</button></div></div>`).join('')}</div></div>`;
+ if(lista.length)h+=`<div class="panel"><div class="phead"><h2>Meses importados</h2></div><div class="mlist">${lista.map(d=>`<div class="mrow"><div><b>${label(d)}</b>${d.pag&&d.pag.parcial?' <span class="tag man">Parcial</span>':''}<small>Vencimentos: ${d.venc?'importado, gerado em '+esc(d.venc.gerado||'data não informada'):'falta importar'}.</small><small>Pagamentos: ${d.pag?'importado, gerado em '+esc(d.pag.gerado||'data não informada'):'falta importar'}.</small></div><div class="actions"><button class="btn" data-ver="${d.i}">Ver mês</button><button class="btn" data-del="${d.i}">Remover</button></div></div>`).join('')}</div></div>`;
  h+=`<div class="panel"><div class="phead"><h2>Cópia de segurança</h2></div><p class="sub" style="margin-bottom:16px">Os dados ficam só neste navegador. Baixe uma cópia para guardar ou para abrir em outro computador ou celular.</p>
   <div class="actions"><button class="btn" id="bkOut" ${MESES.length?'':'disabled'}>Baixar cópia</button><label class="btn" for="bkIn">Restaurar cópia</label><input type="file" id="bkIn" accept=".json" style="position:absolute;width:1px;height:1px;opacity:0"></div></div>`;
  $('#v-imp').innerHTML=h;
  const dz=$('#drop');
+ document.querySelectorAll('input[name="tipo"]').forEach(r=>r.onchange=()=>{S.impTipo=r.value;dz.classList.remove('off');dz.querySelector('p').textContent='Arraste o arquivo para cá ou escolha no computador.';impPrev()});
+ $('#impMes').onchange=e=>{S.impMes=e.target.value;impPrev()};
  $('#impF').onchange=e=>{if(e.target.files[0])lerArquivo(e.target.files[0]);e.target.value=''};
  dz.ondragover=e=>{e.preventDefault();dz.classList.add('over')};dz.ondragleave=()=>dz.classList.remove('over');
  dz.ondrop=e=>{e.preventDefault();dz.classList.remove('over');const f=e.dataTransfer.files[0];if(f)lerArquivo(f)};
@@ -540,31 +599,50 @@ function rImp(){
  document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{const d=MESES[+b.dataset.del];
   if(!confirm(`Remover ${label(d)}? Os indicadores manuais desse mês continuam guardados.`))return;
   MESES.splice(d.i,1);indexMeses();saveMeses();S.mi=MESES.length-1;toast(`${label(d)} removido.`);render()});
- $('#bkOut').onclick=()=>{const blob=new Blob([JSON.stringify({app:'indicadores-nexus',versao:1,meses:MESES.map(({i,key,...d})=>d),manuais:MAN},null,1)],{type:'application/json'});
+ $('#bkOut').onclick=()=>{const blob=new Blob([JSON.stringify({app:'indicadores-nexus',versao:1,meses:plain(),manuais:MAN},null,1)],{type:'application/json'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='indicadores-nexus-copia.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
  $('#bkIn').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f)return;f.text().then(t=>{
   let j;try{j=JSON.parse(t)}catch(x){toast('Arquivo de cópia inválido.');return}
   if(!j||j.app!=='indicadores-nexus'||!Array.isArray(j.meses)){toast('Este arquivo não é uma cópia do app.');return}
-  j.meses.forEach(n=>{if(n&&n.dre&&Number.isInteger(n.y)&&Number.isInteger(n.m)){const k=MESES.findIndex(d=>d.y===n.y&&d.m===n.m);k>=0?MESES[k]=n:MESES.push(n)}});
+  j.meses.forEach(n=>{if(n&&(n.dre||n.venc||n.pag)&&Number.isInteger(n.y)&&Number.isInteger(n.m)){prep(n);const o=MESES.find(d=>d.y===n.y&&d.m===n.m);
+   if(o)['venc','pag'].forEach(t=>{if(n[t])o[t]=n[t]});else MESES.push({y:n.y,m:n.m,venc:n.venc,pag:n.pag})}});
   Object.assign(MAN,j.manuais||{});try{localStorage.setItem(STORE,JSON.stringify(MAN))}catch(x){}
   indexMeses();saveMeses();S.mi=MESES.length-1;toast('Cópia restaurada.');render()})};
  if(S.imp)impPrev();
 }
+// meses que dá para escolher: do início do ano passado até o fim deste ano, mais os já importados
+function mesOpts(){
+ const hoje=new Date(),ks=new Set(MESES.map(d=>d.key));
+ for(let y=hoje.getFullYear()-1;y<=hoje.getFullYear();y++)for(let m=0;m<12;m++)ks.add(y+'-'+String(m+1).padStart(2,'0'));
+ return `<option value="">Mesmo mês do arquivo</option>`+[...ks].sort().reverse().map(k=>`<option value="${k}" ${S.impMes===k?'selected':''}>${MESL[+k.slice(5)-1]} ${k.slice(0,4)}</option>`).join('');
+}
 function lerArquivo(f){
+ if(!S.impTipo){toast('Escolha antes se é o relatório de vencimentos ou de pagamentos.');return}
  f.text().then(t=>{try{S.imp=lerDreEllo(t);S.imp.arquivo=f.name}catch(e){S.imp=null;toast(e.message);return}impPrev();$('#impPrev').scrollIntoView({block:'start',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'})})
   .catch(()=>toast('Não foi possível ler o arquivo.'));
 }
 function impPrev(){
- const d=S.imp,a=$('#impPrev');if(!d){a.innerHTML='';return}
- const ja=MESES.find(x=>x.y===d.y&&x.m===d.m),rf=resultado(d),bate=d.resEllo!=null&&Math.abs(d.resEllo-rf)<.01;
- a.innerHTML=`<div class="panel"><div class="phead"><h2>${label(d)}${d.unidade?', unidade '+esc(d.unidade):''}</h2><span class="tag">${esc(d.arquivo)}</span></div>
+ const d=S.imp,a=$('#impPrev');if(!a)return;if(!d){a.innerHTML='';return}
+ const t=S.impTipo,alvo=S.impMes?{y:+S.impMes.slice(0,4),m:+S.impMes.slice(5)-1}:{y:d.y,m:d.m};
+ const ja=MESES.find(x=>x.y===alvo.y&&x.m===alvo.m),jaTipo=ja&&t&&ja[t];
+ const rf=resultado(d),bate=d.resEllo!=null&&Math.abs(d.resEllo-rf)<.01,outro=alvo.y!==d.y||alvo.m!==d.m;
+ const notas=[`<span class="${bate?'ok':'warn'}">${bate?'Resultado confere com o do ELLO.':'Resultado diferente do ELLO ('+(d.resEllo==null?'não informado':brl(d.resEllo))+'). Confira o arquivo.'}</span>`,
+  outro?`<span class="warn">O arquivo é de ${label(d)}, mas vai ser salvo em ${label(alvo)}. Confira o mês.</span>`:'',
+  d.parcial?`<span class="warn">Relatório parcial: gerado em ${esc(d.gerado)}, antes do fim do mês.</span>`:'',
+  jaTipo?`<span class="warn">Os ${TIPOS[t][0].toLowerCase()} de ${label(alvo)} já foram importados. Salvar vai substituir.</span>`:'',
+  ...d.avisos.map(x=>`<span class="warn">${esc(x)}</span>`)].filter(Boolean);
+ a.innerHTML=`<div class="panel"><div class="phead"><h2>${t?TIPOS[t][0]:'Relatório'} de ${label(alvo)}${d.unidade?', unidade '+esc(d.unidade):''}</h2><span class="tag">${esc(d.arquivo)}</span></div>
  <div class="checks num">${[['Faturamento',fatOp(d)],['Custos variáveis',G(d,'cv')],['Despesas fixas',G(d,'df')],['Investimentos',G(d,'inv')],['Não operacionais',G(d,'mno')],['Resultado final',rf]].map(([n,v])=>`<div><span>${n}</span><b>${brl(v)}</b></div>`).join('')}</div>
- <ul class="notes">${[`<span class="${bate?'ok':'warn'}">${bate?'Resultado confere com o do ELLO.':'Resultado diferente do ELLO ('+(d.resEllo==null?'não informado':brl(d.resEllo))+'). Confira o arquivo.'}</span>`,d.parcial?`<span class="warn">Mês parcial: DRE gerado em ${esc(d.gerado)}, antes do fim do mês.</span>`:'',ja?`<span class="warn">${label(d)} já foi importado. Salvar vai substituir os números.</span>`:'',...d.avisos.map(x=>`<span class="warn">${esc(x)}</span>`)].filter(Boolean).map(x=>`<li>${x}</li>`).join('')}</ul>
- <div class="actions"><button class="btn pri" id="impOk">${ja?'Substituir':'Salvar'} ${MESL[d.m].toLowerCase()}</button><button class="btn" id="impX">Cancelar</button></div></div>`;
+ <ul class="notes">${notas.map(x=>`<li>${x}</li>`).join('')}</ul>
+ <div class="actions"><button class="btn pri" id="impOk">${jaTipo?'Substituir':'Salvar'} ${t?TIPOS[t][0].toLowerCase():''} de ${MESL[alvo.m].toLowerCase()}</button><button class="btn" id="impX">Cancelar</button></div></div>`;
  $('#impX').onclick=()=>{S.imp=null;impPrev()};
- $('#impOk').onclick=()=>{const {avisos,arquivo,...n}=S.imp;const k=MESES.findIndex(x=>x.y===n.y&&x.m===n.m);k>=0?MESES[k]=n:MESES.push(n);indexMeses();
-  const ok=saveMeses();S.imp=null;S.mi=MESES.find(x=>x.y===n.y&&x.m===n.m).i;
-  toast(ok?`${label(n)} importado.`:`${label(n)} importado só até fechar a página: este navegador não permite guardar dados.`);go('mes')};
+ $('#impOk').onclick=()=>{
+  if(!S.impTipo){toast('Escolha se é o relatório de vencimentos ou de pagamentos.');return}
+  const {avisos,arquivo,y,m,...rel}=S.imp;let mes=MESES.find(x=>x.y===alvo.y&&x.m===alvo.m);
+  if(!mes){mes={y:alvo.y,m:alvo.m};MESES.push(mes)}
+  mes[t]=rel;indexMeses();const ok=saveMeses();
+  S.imp=null;S.impTipo=null;S.impMes='';S.mi=mes.i;
+  toast(ok?`${TIPOS[t][0]} de ${label(mes)} importados.`:`${TIPOS[t][0]} importados só até fechar a página: este navegador não permite guardar dados.`);go('mes')};
 }
 
 /* ---------- indicadores manuais ---------- */
