@@ -221,6 +221,21 @@ table.cmp th small{display:block;font-weight:500;color:var(--warn)}
 .chk{display:inline-flex;align-items:center;gap:8px;font-size:14px;cursor:pointer}
 .chk input{accent-color:var(--text)}
 
+/* login */
+.auth{min-height:100vh;display:grid;place-items:center;padding:24px 16px}
+.auth[hidden]{display:none}
+body.auth-on .app,body.auth-on .bottom{display:none}
+.acard{width:100%;max-width:380px;background:var(--surface);border-radius:16px;box-shadow:var(--shadow),0 8px 24px rgba(16,24,40,.06);padding:28px}
+.acard .brand{padding:0 0 22px}
+.acard h2{font-size:18px;margin:0 0 6px}
+.acard>p{color:var(--muted);font-size:14px;margin:0 0 18px}
+.acard .field{margin-bottom:14px}
+.acard form .btn{width:100%;margin-top:4px}
+.acard .alt{margin:16px 0 0;text-align:center}
+.aerr,.aok{border-radius:9px;padding:10px 12px;font-size:13.5px;margin:0 0 16px}
+.aerr{background:var(--negSoft);color:var(--neg)}
+.aok{background:var(--posSoft);color:var(--pos)}
+
 /* gráfico */
 .chips{display:flex;gap:6px;flex-wrap:wrap}
 .chip{height:34px;padding:0 13px;border-radius:17px;border:0;background:var(--sunk);cursor:pointer;font-size:13.5px;font-weight:500}
@@ -285,6 +300,7 @@ table.cmp th small{display:block;font-weight:500;color:var(--warn)}
   </main>
 </div>
 <nav class="bottom" id="bottomNav" aria-label="Menu"></nav>
+<div class="auth" id="auth" hidden></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
@@ -299,6 +315,62 @@ const NAV=[['mes','Visão do mês','Mês'],['imp','Importar DRE','Importar'],['m
 const NAVN=Object.fromEntries(NAV.map(([k,n])=>[k,n]));
 const MONTH_VIEWS=['mes','man'];
 
+/* ---------- banco na nuvem (Supabase) ----------
+   Com SB_KEY preenchida, o app pede login e guarda tudo no Supabase, visível para os usuários
+   cadastrados. Sem a chave, funciona só neste navegador. A chave publishable/anon é pública por
+   natureza: quem protege os dados são as regras de acesso do banco (supabase/schema.sql). */
+const SB_URL='https://jjwlxoonvrylalqxuwta.supabase.co';
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Impqd2x4b29udnJ5bGFscXh1d3RhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2OTk0NDEsImV4cCI6MjEwNjI3NTQ0MX0.avvMSmYi-mcsUmDba9E3KpwoEHFFSyue0kGe7PXzxNQ';
+const NUVEM=!!SB_KEY;
+const K_SES='nexus.sessao';
+let SES=null,PERFIL=null;try{SES=JSON.parse(localStorage.getItem(K_SES))}catch(e){SES=null}
+function guardarSessao(j){
+ SES=j?{access_token:j.access_token,refresh_token:j.refresh_token,expires_at:+j.expires_at||Math.floor(Date.now()/1000)+(+j.expires_in||3600),email:(j.user&&j.user.email)||j.email||''}:null;
+ try{SES?localStorage.setItem(K_SES,JSON.stringify(SES)):localStorage.removeItem(K_SES)}catch(e){}
+}
+async function authReq(path,body,method='POST',token){
+ const h={apikey:SB_KEY,'Content-Type':'application/json'};if(token)h.Authorization='Bearer '+token;
+ const r=await fetch(SB_URL+'/auth/v1/'+path,{method,headers:h,body:body?JSON.stringify(body):undefined});
+ const j=await r.json().catch(()=>({}));
+ if(!r.ok)throw Object.assign(new Error(j.error_description||j.msg||j.message||('Erro '+r.status)),{status:r.status,code:j.error_code||j.error||''});
+ return j;
+}
+async function renovarSessao(){const j=await authReq('token?grant_type=refresh_token',{refresh_token:SES.refresh_token});guardarSessao(j)}
+async function sessaoValida(){
+ if(!SES||!SES.access_token)return null;
+ if(SES.expires_at-60<Date.now()/1000){try{await renovarSessao()}catch(e){guardarSessao(null);return null}}
+ return SES;
+}
+async function sb(path,{method='GET',body,prefer}={},tentar=true){
+ if(!await sessaoValida()){telaAuth('login','Sua sessão expirou. Entre de novo.');throw new Error('Sessão expirada.')}
+ const h={apikey:SB_KEY,Authorization:'Bearer '+SES.access_token};if(body)h['Content-Type']='application/json';if(prefer)h.Prefer=prefer;
+ let r;try{r=await fetch(SB_URL+'/rest/v1/'+path,{method,headers:h,body:body?JSON.stringify(body):undefined})}catch(e){throw new Error('Sem conexão com o banco. Confira a internet e tente de novo.')}
+ if(r.status===401&&tentar){try{await renovarSessao()}catch(e){guardarSessao(null);telaAuth('login','Sua sessão expirou. Entre de novo.');throw e}return sb(path,{method,body,prefer},false)}
+ if(!r.ok){const j=await r.json().catch(()=>({}));throw new Error(r.status===403||j.code==='42501'?'Seu usuário não tem permissão para isso.':(j.message||('Erro '+r.status+' no banco.')))}
+ if(r.status===204)return null;const t=await r.text();return t?JSON.parse(t):null;
+}
+const agora=()=>new Date().toISOString();
+const UPSERT='resolution=merge-duplicates,return=minimal';
+const podeEditar=()=>!NUVEM||(PERFIL&&PERFIL.papel==='editor');
+function semPermissao(){if(podeEditar())return false;toast('Seu acesso é só para visualizar.');return true}
+async function carregarNuvem(){
+ const [rels,mans,cmps]=await Promise.all([sb('relatorios?select=mes,tipo,dados'),sb('manuais?select=mes,dados'),sb('comparativos?select=id,nome,cfg&order=criado_em')]);
+ const mp=new Map();
+ (rels||[]).forEach(r=>{if(!/^\d{4}-\d{2}$/.test(r.mes)||!TIPOS[r.tipo])return;let d=mp.get(r.mes);if(!d){d={y:+r.mes.slice(0,4),m:+r.mes.slice(5)-1};mp.set(r.mes,d)}d[r.tipo]=r.dados});
+ MESES=[...mp.values()];indexMeses();
+ MAN={};(mans||[]).forEach(x=>MAN[x.mes]=x.dados||{});
+ SALVOS=(cmps||[]).map(x=>({id:x.id,nome:x.nome,cfg:x.cfg}));
+}
+// grava no banco meses (com venc/pag), indicadores manuais e comparativos
+async function enviarNuvem(meses,manuais,salvos){
+ const rels=[];meses.forEach(n=>{prep(n);const mes=n.y+'-'+String(n.m+1).padStart(2,'0');['venc','pag'].forEach(t=>{if(n[t])rels.push({mes,tipo:t,dados:n[t],atualizado_em:agora()})})});
+ if(rels.length)await sb('relatorios?on_conflict=mes,tipo',{method:'POST',body:rels,prefer:UPSERT});
+ const mans=Object.entries(manuais||{}).filter(([k,v])=>/^\d{4}-\d{2}$/.test(k)&&v&&Object.keys(v).length).map(([mes,dados])=>({mes,dados,atualizado_em:agora()}));
+ if(mans.length)await sb('manuais?on_conflict=mes',{method:'POST',body:mans,prefer:UPSERT});
+ const cmps=(salvos||[]).filter(x=>x&&x.nome&&x.cfg).map(x=>({nome:x.nome,cfg:x.cfg}));
+ if(cmps.length)await sb('comparativos?on_conflict=nome',{method:'POST',body:cmps,prefer:UPSERT});
+}
+
 /* ---------- dados ----------
    Nenhum número fica no código. Os meses entram pelo DRE exportado do ELLO (tela Importar DRE)
    e ficam salvos no navegador de quem importou. Só os totais por conta são guardados. */
@@ -306,7 +378,7 @@ const MES=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','De
 const MESL=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const GRUPOS=[['rec','Receitas'],['cv','Custos variáveis'],['df','Despesas fixas'],['inv','Investimentos'],['mno','Movimentações não operacionais']];
 const K_MESES='nexus.meses.v1';
-let MESES=[];try{MESES=JSON.parse(localStorage.getItem(K_MESES))||[]}catch(e){MESES=[]}
+let MESES=[];try{if(!NUVEM)MESES=JSON.parse(localStorage.getItem(K_MESES))||[]}catch(e){MESES=[]}
 const TIPOS={venc:['Vencimentos','Previsto'],pag:['Pagamentos','Realizado']};
 function prep(d){
  // registros antigos (antes da escolha de tipo) são tratados como pagamentos
@@ -317,7 +389,7 @@ function prep(d){
 const plain=()=>MESES.map(d=>({y:d.y,m:d.m,venc:d.venc,pag:d.pag}));
 function indexMeses(){MESES.forEach(prep);MESES.sort((a,b)=>a.y-b.y||a.m-b.m).forEach((d,i)=>{d.i=i;d.key=d.y+'-'+String(d.m+1).padStart(2,'0')})}
 indexMeses();
-function saveMeses(){try{localStorage.setItem(K_MESES,JSON.stringify(plain()));return true}catch(e){return false}}
+function saveMeses(){if(NUVEM)return true;try{localStorage.setItem(K_MESES,JSON.stringify(plain()));return true}catch(e){return false}}
 
 /* ---------- leitura do DRE do ELLO ----------
    O arquivo .xls do ELLO é uma página HTML. As linhas de resumo têm 3 colunas (conta, valor, %);
@@ -407,10 +479,10 @@ const MAN_FIELDS=[
  ['Instagram',[['igSeg','Seguidores no fim do mês'],['igAlc','Contas alcançadas'],['igEng','Contas com engajamento']]]
 ];
 const STORE='nexus.manual.v1';
-let MAN={};try{MAN=JSON.parse(localStorage.getItem(STORE))||{}}catch(e){MAN={}}
+let MAN={};try{if(!NUVEM)MAN=JSON.parse(localStorage.getItem(STORE))||{}}catch(e){MAN={}}
 const man=d=>MAN[d.key]||{};
 const hasMan=d=>Object.keys(man(d)).length>0;
-function saveMan(d,vals){MAN[d.key]=vals;try{localStorage.setItem(STORE,JSON.stringify(MAN));return true}catch(e){return false}}
+function saveMan(d,vals){MAN[d.key]=vals;if(NUVEM)return true;try{localStorage.setItem(STORE,JSON.stringify(MAN));return true}catch(e){return false}}
 
 /* ---------- formatação ---------- */
 const brl=v=>(v<0?'−':'')+'R$ '+Math.abs(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -444,10 +516,11 @@ function nav(){
  const item=(k,s,cls)=>{const on=S.view===k;return `<button class="${cls} ${on?'on':''}" data-go="${k}" ${on?'aria-current="page"':''}>${IC[k]}<span>${s}</span></button>`};
  $('#sideNav').innerHTML=views().map(([k,n])=>item(k,n,'nav')).join('');
  $('#bottomNav').innerHTML=views().map(([k,,s])=>item(k,s,'')).join('');
- $('#sideFoot').textContent=MESES.length?`${MESES.length} ${MESES.length===1?'mês importado':'meses importados'} do ELLO. Os dados ficam salvos neste navegador.`:'Nenhum mês importado ainda.';
+ const qtd=MESES.length?`${MESES.length} ${MESES.length===1?'mês importado':'meses importados'} do ELLO.`:'Nenhum mês importado ainda.';
+ $('#sideFoot').innerHTML=NUVEM?`${qtd}<br>Conectado como ${esc(PERFIL&&PERFIL.nome||SES&&SES.email||'')}. <button class="link" data-sair style="font-size:12px">Sair</button>`:`${qtd}${MESES.length?' Os dados ficam salvos neste navegador.':''}`;
 }
 function go(v){S.view=v;document.querySelectorAll('.view').forEach(e=>e.classList.toggle('on',e.id==='v-'+v));window.scrollTo(0,0);render()}
-document.addEventListener('click',e=>{const b=e.target.closest('[data-go]');if(b)go(b.dataset.go)});
+document.addEventListener('click',e=>{const b=e.target.closest('[data-go]');if(b)go(b.dataset.go);if(e.target.closest('[data-sair]'))sair()});
 function render(){nav();renderTop();({mes:rMes,imp:rImp,man:rMan,cmp:rCmp})[S.view]()}
 const monthOpts=sel=>MESES.map(d=>`<option value="${d.i}" ${d.i===sel?'selected':''}>${NARROW.matches?MES[d.m]+' '+d.y:label(d)+(d.parcial?' (parcial)':'')}</option>`).join('');
 function setMonth(i,refocus){
@@ -608,9 +681,16 @@ function rImp(){
  </div>
  <div id="impPrev"></div>`;
  if(lista.length)h+=`<div class="panel"><div class="phead"><h2>Meses importados</h2></div><div class="mlist">${lista.map(d=>`<div class="mrow"><div><b>${label(d)}</b>${d.pag&&d.pag.parcial?' <span class="tag man">Parcial</span>':''}<small>Vencimentos: ${d.venc?'importado, gerado em '+esc(d.venc.gerado||'data não informada'):'falta importar'}.</small><small>Pagamentos: ${d.pag?'importado, gerado em '+esc(d.pag.gerado||'data não informada'):'falta importar'}.</small></div><div class="actions"><button class="btn" data-ver="${d.i}">Ver mês</button><button class="btn" data-del="${d.i}">Remover</button></div></div>`).join('')}</div></div>`;
- h+=`<div class="panel"><div class="phead"><h2>Cópia de segurança</h2></div><p class="sub" style="margin-bottom:16px">Os dados ficam neste navegador. Baixe uma cópia para guardar ou usar em outro aparelho.</p>
+ h+=`<div class="panel"><div class="phead"><h2>Cópia de segurança</h2></div><p class="sub" style="margin-bottom:16px">${NUVEM?'Os dados ficam no banco. Baixe uma cópia de vez em quando para guardar.':'Os dados ficam neste navegador. Baixe uma cópia para guardar ou usar em outro aparelho.'}</p>
   <div class="actions"><button class="btn" id="bkOut" ${MESES.length?'':'disabled'}>Baixar cópia</button><label class="btn" for="bkIn">Restaurar cópia</label><input type="file" id="bkIn" accept=".json" style="position:absolute;width:1px;height:1px;opacity:0"></div></div>`;
+ const loc=NUVEM&&podeEditar()?dadosLocais():null;
+ if(loc&&loc.meses.length)h=h.replace('<div id="impPrev"></div>',`<div class="panel"><div class="phead"><h2>Dados guardados só neste navegador</h2></div><p class="sub" style="margin-bottom:16px">Há ${loc.meses.length} ${loc.meses.length===1?'mês importado':'meses importados'} aqui antes do banco existir. Envie para o banco para aparecer para todos.</p><div class="actions"><button class="btn pri" id="migrar">Enviar para o banco</button><button class="btn" id="descartar">Descartar</button></div></div><div id="impPrev"></div>`);
+ if(NUVEM)h+=`<p class="sub">Conectado como ${esc(PERFIL&&PERFIL.nome||SES&&SES.email||'')}. <button class="link" data-sair>Sair</button></p>`;
  $('#v-imp').innerHTML=h;
+ const mg=$('#migrar');if(mg)mg.onclick=async()=>{mg.disabled=true;mg.textContent='Enviando…';
+  try{await enviarNuvem(loc.meses,loc.manuais,loc.salvos);await carregarNuvem()}catch(e){mg.disabled=false;mg.textContent='Tentar de novo';toast(e.message);return}
+  limparLocais();S.mi=MESES.length-1;toast('Dados enviados para o banco.');render()};
+ const dc=$('#descartar');if(dc)dc.onclick=()=>{if(!confirm('Apagar os dados guardados só neste navegador? O que já está no banco não muda.'))return;limparLocais();render()};
  const dz=$('#drop');
  document.querySelectorAll('input[name="tipo"]').forEach(r=>r.onchange=()=>{S.impTipo=r.value;dz.classList.remove('off');dz.querySelector('p').textContent='Arraste o arquivo para cá ou escolha no computador.';impPrev()});
  $('#impMes').onchange=e=>{S.impMes=e.target.value;impPrev()};
@@ -618,14 +698,17 @@ function rImp(){
  dz.ondragover=e=>{e.preventDefault();dz.classList.add('over')};dz.ondragleave=()=>dz.classList.remove('over');
  dz.ondrop=e=>{e.preventDefault();dz.classList.remove('over');const f=e.dataTransfer.files[0];if(f)lerArquivo(f)};
  document.querySelectorAll('[data-ver]').forEach(b=>b.onclick=()=>{S.mi=+b.dataset.ver;go('mes')});
- document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{const d=MESES[+b.dataset.del];
-  if(!confirm(`Remover ${label(d)}? Os indicadores manuais desse mês continuam guardados.`))return;
+ document.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{const d=MESES[+b.dataset.del];
+  if(semPermissao()||!confirm(`Remover ${label(d)}? Os indicadores manuais desse mês continuam guardados.`))return;
+  if(NUVEM)try{await sb('relatorios?mes=eq.'+d.key,{method:'DELETE'})}catch(e){toast(e.message);return}
   MESES.splice(d.i,1);indexMeses();saveMeses();S.mi=MESES.length-1;toast(`${label(d)} removido.`);render()});
- $('#bkOut').onclick=()=>{const blob=new Blob([JSON.stringify({app:'indicadores-nexus',versao:1,meses:plain(),manuais:MAN},null,1)],{type:'application/json'});
+ $('#bkOut').onclick=()=>{const blob=new Blob([JSON.stringify({app:'indicadores-nexus',versao:1,meses:plain(),manuais:MAN,comparativos:SALVOS.map(x=>({nome:x.nome,cfg:x.cfg}))},null,1)],{type:'application/json'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='indicadores-nexus-copia.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
- $('#bkIn').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f)return;f.text().then(t=>{
+ $('#bkIn').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f||semPermissao())return;f.text().then(async t=>{
   let j;try{j=JSON.parse(t)}catch(x){toast('Arquivo de cópia inválido.');return}
   if(!j||j.app!=='indicadores-nexus'||!Array.isArray(j.meses)){toast('Este arquivo não é uma cópia do app.');return}
+  if(NUVEM){try{await enviarNuvem(j.meses.filter(n=>n&&(n.dre||n.venc||n.pag)&&Number.isInteger(n.y)&&Number.isInteger(n.m)),j.manuais,j.comparativos);await carregarNuvem()}catch(x){toast(x.message);return}
+   S.mi=MESES.length-1;toast('Cópia enviada para o banco.');render();return}
   j.meses.forEach(n=>{if(n&&(n.dre||n.venc||n.pag)&&Number.isInteger(n.y)&&Number.isInteger(n.m)){prep(n);const o=MESES.find(d=>d.y===n.y&&d.m===n.m);
    if(o)['venc','pag'].forEach(t=>{if(n[t])o[t]=n[t]});else MESES.push({y:n.y,m:n.m,venc:n.venc,pag:n.pag})}});
   Object.assign(MAN,j.manuais||{});try{localStorage.setItem(STORE,JSON.stringify(MAN))}catch(x){}
@@ -658,9 +741,14 @@ function impPrev(){
  <ul class="notes">${notas.map(x=>`<li>${x}</li>`).join('')}</ul>
  <div class="actions"><button class="btn pri" id="impOk">${jaTipo?'Substituir':'Salvar'} ${t?TIPOS[t][0].toLowerCase():''} de ${MESL[alvo.m].toLowerCase()}</button><button class="btn" id="impX">Cancelar</button></div></div>`;
  $('#impX').onclick=()=>{S.imp=null;impPrev()};
- $('#impOk').onclick=()=>{
+ $('#impOk').onclick=async()=>{
   if(!S.impTipo){toast('Escolha se é o relatório de vencimentos ou de pagamentos.');return}
-  const {avisos,arquivo,y,m,...rel}=S.imp;let mes=MESES.find(x=>x.y===alvo.y&&x.m===alvo.m);
+  if(semPermissao())return;
+  const {avisos,arquivo,y,m,...rel}=S.imp;
+  if(NUVEM){const b=$('#impOk');b.disabled=true;b.textContent='Salvando…';
+   try{await sb('relatorios?on_conflict=mes,tipo',{method:'POST',body:[{mes:alvo.y+'-'+String(alvo.m+1).padStart(2,'0'),tipo:t,dados:rel,atualizado_em:agora()}],prefer:UPSERT})}
+   catch(e){b.disabled=false;b.textContent='Tentar de novo';toast(e.message);return}}
+  let mes=MESES.find(x=>x.y===alvo.y&&x.m===alvo.m);
   if(!mes){mes={y:alvo.y,m:alvo.m};MESES.push(mes)}
   mes[t]=rel;indexMeses();const ok=saveMeses();
   S.imp=null;S.impTipo=null;S.impMes='';S.mi=mes.i;
@@ -674,13 +762,15 @@ function rMan(){
  const F=([id,l])=>`<div class="field"><label for="f-${id}">${l}</label><input id="f-${id}" inputmode="decimal" autocomplete="off" value="${M[id]==null?'':String(M[id]).replace('.',',')}"></div>`;
  $('#v-man').innerHTML=`<p class="sub">O que não vem do DRE do ELLO. Deixe em branco o que ainda não tiver; dá para voltar e completar depois.</p>
  ${MAN_FIELDS.map(([n,fs])=>`<div class="panel"><div class="phead"><h2>${n}</h2></div><div class="fgrid">${fs.map(F).join('')}</div></div>`).join('')}
- <div class="formfoot"><button class="btn pri" id="manSave">Salvar indicadores de ${MESL[d.m].toLowerCase()}</button><p>Os dados ficam salvos neste navegador.</p></div>`;
- $('#manSave').onclick=()=>{
+ <div class="formfoot"><button class="btn pri" id="manSave">Salvar indicadores de ${MESL[d.m].toLowerCase()}</button>${NUVEM?'':'<p>Os dados ficam salvos neste navegador.</p>'}</div>`;
+ $('#manSave').onclick=async()=>{
   const vals={};let bad=null;
   MAN_FIELDS.forEach(([,fs])=>fs.forEach(([id,,max])=>{const raw=$('#f-'+id).value.trim().replace(/\./g,'').replace(',','.');if(raw==='')return;
    const v=parseFloat(raw);if(isNaN(v)||v<0||(max&&v>max)){bad=bad||id;return}vals[id]=v}));
   if(bad){const l=MAN_FIELDS.flatMap(x=>x[1]).find(x=>x[0]===bad)[1];toast(`Confira o campo "${l}".`);$('#f-'+bad).focus();return}
   if(vals.ini!=null&&vals.cancel!=null&&vals.cancel>vals.ini){toast('Cancelados não pode ser maior que os alunos do início do mês.');$('#f-cancel').focus();return}
+  if(semPermissao())return;
+  if(NUVEM){const b=$('#manSave');b.disabled=true;try{await sb('manuais?on_conflict=mes',{method:'POST',body:[{mes:d.key,dados:vals,atualizado_em:agora()}],prefer:UPSERT})}catch(e){b.disabled=false;toast(e.message);return}b.disabled=false}
   const ok=saveMan(d,vals);
   toast(ok?'Indicadores salvos.':'Indicadores salvos só até fechar a página: este navegador não permite guardar dados.');
  };
@@ -756,7 +846,7 @@ const CMP_PADRAO={mode:'preset',preset:'mxa',ref:'',keys:[],group:'mes',metrics:
 const lerJson=(k,v)=>{try{return JSON.parse(localStorage.getItem(k))||v}catch(e){return v}};
 const gravar=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
 S.cmp=Object.assign({},CMP_PADRAO,lerJson(K_CMP,{}));
-let SALVOS=lerJson(K_SALVOS,[]);
+let SALVOS=NUVEM?[]:lerJson(K_SALVOS,[]);
 
 function periodos(c){
  const one=k=>({label:kLab(k),short:kLabS(k),keys:[k]});
@@ -853,10 +943,13 @@ function rCmp(){
  on('#cOver',t=>c.overlay=t.checked);
  const cl=$('#cClear');if(cl)cl.onclick=()=>up(()=>{c.keys=[]});
  el.querySelectorAll('[data-load]').forEach(b=>b.onclick=()=>up(()=>{S.cmp=Object.assign({},CMP_PADRAO,JSON.parse(JSON.stringify(SALVOS[+b.dataset.load].cfg)))}));
- el.querySelectorAll('[data-unsave]').forEach(b=>b.onclick=()=>{const sv=SALVOS[+b.dataset.unsave];if(!confirm(`Apagar o comparativo "${sv.nome}"?`))return;SALVOS.splice(+b.dataset.unsave,1);gravar(K_SALVOS,SALVOS);rCmp()});
- $('#cSave').onclick=()=>{const nome=$('#cNome').value.trim();if(!nome){toast('Dê um nome ao comparativo.');$('#cNome').focus();return}
-  const i=SALVOS.findIndex(x=>x.nome.toLowerCase()===nome.toLowerCase()),item={nome,cfg:JSON.parse(JSON.stringify(S.cmp))};
-  i>=0?SALVOS[i]=item:SALVOS.push(item);gravar(K_SALVOS,SALVOS);toast(i>=0?`"${nome}" atualizado.`:`"${nome}" salvo.`);rCmp()};
+ el.querySelectorAll('[data-unsave]').forEach(b=>b.onclick=async()=>{const sv=SALVOS[+b.dataset.unsave];if(semPermissao()||!confirm(`Apagar o comparativo "${sv.nome}"?`))return;
+  if(NUVEM)try{await sb('comparativos?nome=eq.'+encodeURIComponent(sv.nome),{method:'DELETE'})}catch(e){toast(e.message);return}SALVOS.splice(+b.dataset.unsave,1);if(!NUVEM)gravar(K_SALVOS,SALVOS);rCmp()});
+ $('#cSave').onclick=async()=>{const nome=$('#cNome').value.trim();if(!nome){toast('Dê um nome ao comparativo.');$('#cNome').focus();return}
+  if(semPermissao())return;
+  const i=SALVOS.findIndex(x=>x.nome.toLowerCase()===nome.toLowerCase()),item={nome:i>=0?SALVOS[i].nome:nome,cfg:JSON.parse(JSON.stringify(S.cmp))};
+  if(NUVEM)try{await sb('comparativos?on_conflict=nome',{method:'POST',body:[item],prefer:UPSERT})}catch(e){toast(e.message);return}
+  i>=0?SALVOS[i]=item:SALVOS.push(item);if(!NUVEM)gravar(K_SALVOS,SALVOS);toast(i>=0?`"${nome}" atualizado.`:`"${nome}" salvo.`);rCmp()};
  const csv=$('#cCsv');if(csv)csv.onclick=()=>{
   const q=v=>'"'+String(v).replace(/"/g,'""')+'"';
   const linhas=[['Indicador',...cols.map(p=>p.label)].map(q).join(';'),...mets.map((m,i)=>[q(m[1]),...cols.map((p,j)=>q(fmtCsv(m[2],vals[i][j])))].join(';'))];
@@ -882,7 +975,58 @@ function chartCmp(labels,series,t,barras){
  return s+'</svg>';
 }
 
-go(S.view);
+/* ---------- login e início ---------- */
+function dadosLocais(){try{return {meses:JSON.parse(localStorage.getItem(K_MESES))||[],manuais:JSON.parse(localStorage.getItem(STORE))||{},salvos:JSON.parse(localStorage.getItem(K_SALVOS))||[]}}catch(e){return null}}
+function limparLocais(){try{[K_MESES,STORE,K_SALVOS].forEach(k=>localStorage.removeItem(k))}catch(e){}}
+function telaAuth(modo,msg,ok){
+ document.body.classList.add('auth-on');const a=$('#auth');a.hidden=false;
+ const brand=`<div class="brand"><div class="logo" aria-hidden="true">N</div><div><b>Indicadores</b><small>Nexus Chapecó</small></div></div>`;
+ const aviso=msg?`<p class="${ok?'aok':'aerr'}" role="alert">${esc(msg)}</p>`:'';
+ const email=`<div class="field"><label for="aEmail">E-mail</label><input id="aEmail" type="email" autocomplete="username" required></div>`;
+ const H={
+  carregando:`${brand}<p>Carregando os dados…</p>`,
+  semacesso:`${brand}<h2>Sem acesso</h2><p>Este usuário entrou, mas ainda não tem acesso ao app. Peça para cadastrar o perfil dele no banco.</p><button class="btn" data-sair>Entrar com outro usuário</button>`,
+  erro:`${brand}<h2>Não foi possível carregar</h2>${aviso}<button class="btn pri" id="aTentar">Tentar de novo</button><p class="alt"><button class="link" data-sair>Sair</button></p>`,
+  esqueci:`${brand}<h2>Redefinir senha</h2><p>Enviamos um link para o seu e-mail.</p>${aviso}<form id="aForm">${email}<button class="btn pri">Enviar link</button></form><p class="alt"><button class="link" id="aVoltar">Voltar para entrar</button></p>`,
+  nova:`${brand}<h2>Crie uma nova senha</h2>${aviso}<form id="aForm"><div class="field"><label for="aSenha">Nova senha (mínimo 6 caracteres)</label><input id="aSenha" type="password" autocomplete="new-password" minlength="6" required></div><button class="btn pri">Salvar senha e entrar</button></form>`,
+  login:`${brand}<h2>Entrar</h2>${aviso}<form id="aForm">${email}<div class="field"><label for="aSenha">Senha</label><input id="aSenha" type="password" autocomplete="current-password" required></div><button class="btn pri">Entrar</button></form><p class="alt"><button class="link" id="aEsqueci">Esqueci a senha</button></p>`
+ };
+ a.innerHTML=`<div class="acard">${H[modo]||H.login}</div>`;
+ const f=$('#aForm'),on=(id,fn)=>{const e=$(id);if(e)e.onclick=fn};
+ on('#aTentar',entrar);on('#aEsqueci',()=>telaAuth('esqueci'));on('#aVoltar',()=>telaAuth('login'));
+ if(f){const btn=f.querySelector('button'),txt=btn.textContent;
+  f.onsubmit=async e=>{e.preventDefault();btn.disabled=true;btn.textContent='Aguarde…';
+   try{
+    if(modo==='esqueci'){await authReq('recover?redirect_to='+encodeURIComponent(location.origin+location.pathname),{email:$('#aEmail').value.trim()});telaAuth('login','Se o e-mail estiver cadastrado, o link chega em alguns minutos.',true);return}
+    if(modo==='nova'){await authReq('user',{password:$('#aSenha').value},'PUT',SES&&SES.access_token);await entrar();return}
+    guardarSessao(await authReq('token?grant_type=password',{email:$('#aEmail').value.trim(),password:$('#aSenha').value}));await entrar();
+   }catch(err){btn.disabled=false;btn.textContent=txt;
+    const m=err.code==='invalid_credentials'||/invalid login/i.test(err.message)?'E-mail ou senha incorretos.':err.code==='email_not_confirmed'?'Este e-mail ainda não foi confirmado.':err.status===429?'Muitas tentativas. Espere um pouco e tente de novo.':/fetch|network/i.test(err.message)?'Sem conexão. Confira a internet.':err.message;
+    const p=a.querySelector('.aerr,.aok');if(p)p.remove();btn.closest('form').insertAdjacentHTML('beforebegin',`<p class="aerr" role="alert">${esc(m)}</p>`)}};
+  const first=f.querySelector('input');if(first)first.focus()}
+}
+async function entrar(){
+ telaAuth('carregando');
+ try{const p=await sb('perfis?select=nome,papel');if(!p||!p.length){telaAuth('semacesso');return}PERFIL=p[0];await carregarNuvem()}
+ catch(e){if(SES)telaAuth('erro',e.message);return}
+ document.body.classList.remove('auth-on');$('#auth').hidden=true;$('#auth').innerHTML='';
+ S.mi=MESES.length-1;go(MESES.length?'mes':'imp');
+}
+async function sair(){
+ try{if(SES)await authReq('logout',null,'POST',SES.access_token)}catch(e){}
+ guardarSessao(null);PERFIL=null;MESES=[];MAN={};SALVOS=[];S.imp=null;telaAuth('login');
+}
+async function iniciar(){
+ if(!NUVEM){go(S.view);return}
+ // links de e-mail do Supabase (redefinir senha, convite) chegam com o login no endereço
+ const hp=new URLSearchParams(location.hash.slice(1)),limpa=()=>history.replaceState(null,'',location.pathname+location.search);
+ if(hp.get('error')||hp.get('error_code')){limpa();telaAuth('login',hp.get('error_code')==='otp_expired'?'O link expirou. Peça outro em "Esqueci a senha".':'Não foi possível usar o link. Peça outro.');return}
+ if(hp.get('access_token')){guardarSessao({access_token:hp.get('access_token'),refresh_token:hp.get('refresh_token'),expires_at:hp.get('expires_at'),expires_in:hp.get('expires_in')});limpa();
+  if(['recovery','invite'].includes(hp.get('type'))){telaAuth('nova');return}}
+ if(await sessaoValida())entrar();else telaAuth('login');
+}
+addEventListener('hashchange',()=>{if(NUVEM&&/access_token=|error=/.test(location.hash))iniciar()});
+iniciar();
 </script>
 </body>
 </html>
