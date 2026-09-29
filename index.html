@@ -196,6 +196,31 @@ label.btn{display:inline-flex;align-items:center}
 .drop.off{opacity:.55}
 @media (max-width:560px){.opts{grid-template-columns:1fr}.qmes select{min-width:0;width:100%}}
 
+/* comparativos */
+.cgrp + .cgrp{margin-top:18px}
+.clab{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:0 0 8px}
+.crow{display:flex;gap:12px 16px;flex-wrap:wrap;align-items:flex-end}
+.crow .field{min-width:200px;flex:0 1 280px}
+.crow select{height:38px;border-radius:9px;border:1px solid var(--line);background:var(--surface);padding:0 10px;width:100%}
+.ychips{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.ychips + .ychips{margin-top:8px}
+.ychips .yl{font-size:13px;font-weight:600;color:var(--muted);min-width:40px}
+.chip.sm{height:30px;padding:0 11px;font-size:13px}
+.saved{display:inline-flex;align-items:center;background:var(--sunk);border-radius:17px}
+.saved .chip{background:none}
+.saved .del{border:0;background:none;cursor:pointer;color:var(--muted);height:34px;padding:0 12px 0 2px;font-size:16px;border-radius:0 17px 17px 0}
+table.cmp td,table.cmp th{vertical-align:top}
+table.cmp tbody tr{cursor:pointer}
+table.cmp tbody tr:nth-child(even) td{background:var(--zebra)}
+table.cmp tbody tr.sel td{background:var(--orangeSoft)}
+table.cmp td small{display:block;font-size:12px}
+table.cmp th small{display:block;font-weight:500;color:var(--warn)}
+.rm{border:0;background:none;color:var(--muted);cursor:pointer;font-size:15px;padding:0 4px;margin-left:4px}
+.legend{display:flex;gap:16px;font-size:13px;color:var(--muted);margin-top:8px;flex-wrap:wrap}
+.legend i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:middle;margin-right:6px}
+.chk{display:inline-flex;align-items:center;gap:8px;font-size:14px;cursor:pointer}
+.chk input{accent-color:var(--text)}
+
 /* gráfico */
 .chips{display:flex;gap:6px;flex-wrap:wrap}
 .chip{height:34px;padding:0 13px;border-radius:17px;border:0;background:var(--sunk);cursor:pointer;font-size:13.5px;font-weight:500}
@@ -256,7 +281,7 @@ label.btn{display:inline-flex;align-items:center}
     <section class="view on" id="v-mes"></section>
     <section class="view" id="v-imp"></section>
     <section class="view" id="v-man"></section>
-    <section class="view" id="v-evo"></section>
+    <section class="view" id="v-cmp"></section>
   </main>
 </div>
 <nav class="bottom" id="bottomNav" aria-label="Menu"></nav>
@@ -268,9 +293,9 @@ const IC={
  mes:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M3 9h18M8 2v4M16 2v4M8 14h3M8 17h6"/></svg>',
  imp:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>',
  man:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg>',
- evo:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 20h18"/><path d="M5 16l4-5 4 3 6-8"/></svg>'
+ cmp:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 20h18"/><path d="M5 16l4-5 4 3 6-8"/></svg>'
 };
-const NAV=[['mes','Visão do mês','Mês'],['imp','Importar DRE','Importar'],['man','Indicadores manuais','Lançar'],['evo','Evolução','Evolução']];
+const NAV=[['mes','Visão do mês','Mês'],['imp','Importar DRE','Importar'],['man','Indicadores manuais','Lançar'],['cmp','Comparativos','Comparar']];
 const NAVN=Object.fromEntries(NAV.map(([k,n])=>[k,n]));
 const MONTH_VIEWS=['mes','man'];
 
@@ -396,13 +421,13 @@ const dec=(v,dg=1)=>v.toLocaleString('pt-BR',{minimumFractionDigits:dg,maximumFr
 function fmt(t,v){if(v==null||!Number.isFinite(v))return '<span class="pend">a preencher</span>';
  return t==='brl'?brl0(v):t==='pct'?pct(v):t==='n5'?dec(v)+' / 5':t==='n10'?dec(v)+' / 10':int(v)}
 function delta(cur,prv,good,t){
- if(cur==null||prv==null||!good||!Number.isFinite(cur)||!Number.isFinite(prv))return '';
+ if(cur==null||prv==null||!Number.isFinite(cur)||!Number.isFinite(prv))return '';
  let d=cur-prv,txt;
  if(t==='pct'){txt=(d>=0?'+':'−')+dec(Math.abs(d*100))+' p.p.'}
  else if(t==='n5'||t==='n10'){txt=(d>=0?'+':'−')+dec(Math.abs(d))}
  else{if(!prv)return '';const r=d/Math.abs(prv);txt=(r>=0?'+':'−')+dec(Math.abs(r*100))+'%'}
  const flat=Math.abs(d)<1e-9||(!['pct','n5','n10'].includes(t)&&Math.abs(d/prv)<.005);
- const cls=flat?'flat':((d>0)===(good==='up')?'good':'bad');
+ const cls=flat||!good?'flat':((d>0)===(good==='up')?'good':'bad');
  return `<span class="delta ${cls}">${flat?'':(d>0?'▲':'▼')} ${txt}</span>`;
 }
 const $=s=>document.querySelector(s);
@@ -413,7 +438,7 @@ function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('show');cl
 const TABS=[['resumo','Resumo'],['dre','DRE'],['ind','Indicadores']];
 function savedTab(){try{const t=localStorage.getItem('nexus.mesTab');return TABS.some(([k])=>k===t)?t:'resumo'}catch(e){return 'resumo'}}
 const S={view:MESES.length?'mes':'imp',mi:MESES.length-1,imp:null,impTipo:null,impMes:'',mesTab:savedTab(),open:new Set(['rec']),gOpen:new Set(['alu','fin']),metric:'fat'};
-const views=()=>NAV.filter(([k])=>k!=='evo'||MESES.length>1);
+const views=()=>NAV;
 const esc=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function nav(){
  const item=(k,s,cls)=>{const on=S.view===k;return `<button class="${cls} ${on?'on':''}" data-go="${k}" ${on?'aria-current="page"':''}>${IC[k]}<span>${s}</span></button>`};
@@ -423,7 +448,7 @@ function nav(){
 }
 function go(v){S.view=v;document.querySelectorAll('.view').forEach(e=>e.classList.toggle('on',e.id==='v-'+v));window.scrollTo(0,0);render()}
 document.addEventListener('click',e=>{const b=e.target.closest('[data-go]');if(b)go(b.dataset.go)});
-function render(){nav();renderTop();({mes:rMes,imp:rImp,man:rMan,evo:rEvo})[S.view]()}
+function render(){nav();renderTop();({mes:rMes,imp:rImp,man:rMan,cmp:rCmp})[S.view]()}
 const monthOpts=sel=>MESES.map(d=>`<option value="${d.i}" ${d.i===sel?'selected':''}>${NARROW.matches?MES[d.m]+' '+d.y:label(d)+(d.parcial?' (parcial)':'')}</option>`).join('');
 function setMonth(i,refocus){
  S.mi=Math.max(0,Math.min(MESES.length-1,i));render();
@@ -661,23 +686,200 @@ function rMan(){
  };
 }
 
-/* ---------- evolução (aparece a partir de dois meses) ---------- */
-const METRICS={fat:['Faturamento',fatOp,'brl'],lo:['Lucro operacional',lucroOp,'brl'],mg:['Margem',margem,'pct'],rf:['Resultado final',resultado,'brl']};
-function rEvo(){
- const [nm,f,t]=METRICS[S.metric];
- const pts=MESES.map(d=>[MES[d.m]+'/'+String(d.y).slice(2),f(d)]);
- const W=680,H=250,L=70,Rr=16,T=16,B=30,vs=pts.map(x=>x[1]);let mn=Math.min(...vs,0),mx=Math.max(...vs);const pad=(mx-mn)*.12||1;mx+=pad;
- const X=j=>L+(pts.length<2?0:j*(W-L-Rr)/(pts.length-1)),Y=v=>T+(mx-v)/(mx-mn)*(H-T-B);
- const tf=v=>t==='pct'?pct(v,0):(Math.abs(v)>=1000?'R$ '+dec(v/1000,0)+' mil':brl0(v));
- let s=`<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${nm} por mês">`;
+/* ---------- comparativos ----------
+   Cada coluna é um período (um mês ou um grupo de meses). Os períodos vêm de um atalho
+   relativo a um mês de referência ou dos meses escolhidos à mão. Valores em reais somam os
+   meses do período; percentuais são recalculados a partir das somas. */
+const kAdd=(k,n)=>{let y=+k.slice(0,4),m=+k.slice(5)-1+n;y+=Math.floor(m/12);m=((m%12)+12)%12;return y+'-'+String(m+1).padStart(2,'0')};
+const kLab=k=>MESL[+k.slice(5)-1]+' '+k.slice(0,4);
+const kLabS=k=>MES[+k.slice(5)-1]+'/'+k.slice(2,4);
+const byKey=k=>MESES.find(d=>d.key===k);
+const mv=(d,k)=>{const o=man(d);return o[k]==null||o[k]===''?null:+o[k]};
+const repOf=(d,src)=>src==='pag'?d.pag:src==='venc'?d.venc:(d.pag||d.venc);
+function sumR(ms,src,f){if(!ms.length)return null;let t=0;for(const d of ms){const r=repOf(d,src);if(!r)return null;t+=f(r)}return t}
+function sumM(ms,k){let t=0,any=false;for(const d of ms){const v=mv(d,k);if(v!=null){t+=v;any=true}}return any?t:null}
+const div=(a,b)=>a==null||b==null||!b?null:a/b;
+const fimAlunos=d=>{const a=['ini','novos','cancel','concl'].map(k=>mv(d,k));return a.some(x=>x==null)?null:a[0]+a[1]-a[2]-a[3]};
+const leadsOf=ms=>{const t=['lCamp','lOrg','lInd'].map(k=>sumM(ms,k));return t.every(x=>x==null)?null:t.reduce((a,b)=>a+(b||0),0)};
+const itG=(r,g,n)=>{for(const [,its] of r.dre[g]||[])for(const [k,v] of its)if(k===n)return v;return 0};
+const CM=[
+ ['Resultado',[
+  ['fat','Faturamento','brl','up',(ms,s)=>sumR(ms,s,fatOp)],
+  ['lo','Lucro operacional','brl','up',(ms,s)=>sumR(ms,s,lucroOp)],
+  ['mg','Margem líquida operacional','pct','up',(ms,s)=>div(sumR(ms,s,lucroOp),sumR(ms,s,fatOp))],
+  ['rf','Resultado final','brl','up',(ms,s)=>sumR(ms,s,resultado)],
+  ['cv','Custos variáveis','brl','down',(ms,s)=>sumR(ms,s,r=>G(r,'cv'))],
+  ['df','Despesas fixas','brl','down',(ms,s)=>sumR(ms,s,r=>G(r,'df'))],
+  ['inv','Investimentos','brl',null,(ms,s)=>sumR(ms,s,r=>G(r,'inv'))],
+  ['mno','Movimentações não operacionais','brl','down',(ms,s)=>sumR(ms,s,r=>G(r,'mno'))]]],
+ ['Receitas e custos',[
+  ['mens','Mensalidades','brl','up',(ms,s)=>sumR(ms,s,r=>SG(r,'rec','Mensalidades'))],
+  ['vista','Cursos à vista','brl','up',(ms,s)=>sumR(ms,s,r=>SG(r,'rec','Cursos à vista'))],
+  ['mat','Materiais','brl','up',(ms,s)=>sumR(ms,s,r=>SG(r,'rec','Materiais'))],
+  ['pes','Pessoal','brl','down',(ms,s)=>sumR(ms,s,r=>SG(r,'df','Pessoal'))],
+  ['pesp','Pessoal sobre o faturamento','pct','down',(ms,s)=>div(sumR(ms,s,r=>SG(r,'df','Pessoal')),sumR(ms,s,fatOp))],
+  ['adm','Despesas administrativas','brl','down',(ms,s)=>sumR(ms,s,r=>SG(r,'df','Administrativas'))],
+  ['mkt','Marketing','brl',null,(ms,s)=>sumR(ms,s,r=>SG(r,'inv','Marketing'))]]],
+ ['Previsto x realizado',[
+  ['rcb','Recebido sobre o previsto','pct','up',ms=>div(sumR(ms,'pag',fatOp),sumR(ms,'venc',fatOp))],
+  ['nrc','Mensalidades previstas não recebidas','brl','down',ms=>ms.length&&ms.every(d=>d.venc&&d.pag)?ms.reduce((t,d)=>t+Math.max(0,SG(d.venc,'rec','Mensalidades')-SG(d.pag,'rec','Mensalidades')),0):null]]],
+ ['Alunos e comercial',[
+  ['afim','Alunos no fim do período','int','up',ms=>ms.length?fimAlunos(ms[ms.length-1]):null],
+  ['novos','Novos alunos','int','up',ms=>sumM(ms,'novos')],
+  ['canc','Cancelados','int','down',ms=>sumM(ms,'cancel')],
+  ['evas','Evasão','pct','down',ms=>ms.length?div(sumM(ms,'cancel'),mv(ms[0],'ini')):null],
+  ['leads','Leads no total','int','up',leadsOf],
+  ['conv','Conversão de leads','pct','up',ms=>div(sumM(ms,'novos'),leadsOf(ms))],
+  ['cac','Custo por aluno novo (CAC)','brl','down',(ms,s)=>div(sumR(ms,s,r=>SG(r,'inv','Marketing')),sumM(ms,'novos'))],
+  ['satx','Satisfação: experiência geral','n5','up',ms=>{const v=ms.map(d=>mv(d,'sExp')).filter(x=>x!=null);return v.length?sum(v)/v.length:null}],
+  ['seg','Seguidores no Instagram','int','up',ms=>ms.length?mv(ms[ms.length-1],'igSeg'):null]]]
+];
+// qualquer subgrupo ou conta do DRE que já apareceu nos meses importados
+function contasDre(){
+ const out=new Map();
+ GRUPOS.forEach(([g,gn])=>{const sg=new Map(),it=new Map();
+  MESES.forEach(d=>[d.venc,d.pag].forEach(r=>r&&(r.dre[g]||[]).forEach(([n,its])=>{sg.set(`sg|${g}|${n}`,n);its.forEach(([k])=>it.set(`it|${g}|${k}`,k))})));
+  out.set(gn,[...sg].map(([id,n])=>[id,n+' (total)']).concat([...it].sort((a,b)=>a[1].localeCompare(b[1]))))});
+ return out;
+}
+function metDef(id){
+ for(const [,ms] of CM){const m=ms.find(x=>x[0]===id);if(m)return m}
+ const [tp,g,...rest]=id.split('|'),n=rest.join('|');if(!n||!GRUPOS.some(x=>x[0]===g))return null;
+ const good=g==='rec'?'up':g==='inv'?null:'down';
+ return tp==='sg'?[id,n,'brl',good,(ms,s)=>sumR(ms,s,r=>SG(r,g,n))]:[id,n,'brl',good,(ms,s)=>sumR(ms,s,r=>itG(r,g,n))];
+}
+
+const PRESETS=[['mxa','Mês x anterior'],['mxano','Mês x mesmo mês do ano passado'],['mxaa','Mês e anterior x os mesmos do ano passado'],['u3','Últimos 3 meses'],['u6','Últimos 6 meses'],['u12','Últimos 12 meses'],['ano','Ano mês a mês'],['tri','Trimestres do ano'],['anos','Ano até agora x ano passado']];
+const GRUPOS_P=[['mes','Mês a mês'],['tri','Por trimestre'],['ano','Por ano'],['tudo','Tudo junto']];
+const K_CMP='nexus.cmp.v1',K_SALVOS='nexus.cmpSalvos.v1';
+const CMP_PADRAO={mode:'preset',preset:'mxa',ref:'',keys:[],group:'mes',metrics:['fat','lo','mg','rf','pes','novos','evas'],src:'auto',cmpTo:'prev',chart:'fat',overlay:true};
+const lerJson=(k,v)=>{try{return JSON.parse(localStorage.getItem(k))||v}catch(e){return v}};
+const gravar=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
+S.cmp=Object.assign({},CMP_PADRAO,lerJson(K_CMP,{}));
+let SALVOS=lerJson(K_SALVOS,[]);
+
+function periodos(c){
+ const one=k=>({label:kLab(k),short:kLabS(k),keys:[k]});
+ const serie=(a,b)=>{const o=[];for(let k=a;k<=b;k=kAdd(k,1))o.push(k);return o};
+ const grupo=(ks,g)=>{
+  if(g==='mes')return ks.map(one);
+  if(g==='tudo')return ks.length?[{label:ks.length>1?`${kLab(ks[0])} a ${kLab(ks[ks.length-1])}`:kLab(ks[0]),short:'Total',keys:ks}]:[];
+  const mp=new Map();ks.forEach(k=>{const y=k.slice(0,4),q=Math.floor((+k.slice(5)-1)/3)+1,id=g==='tri'?`${q}º tri ${y}`:y;mp.has(id)||mp.set(id,[]);mp.get(id).push(k)});
+  return [...mp].map(([id,keys])=>({label:id,short:g==='tri'?id.replace(' tri ','T/').replace('º',''):id,keys}));
+ };
+ if(c.mode==='custom')return grupo([...c.keys].sort(),c.group);
+ const r=c.ref&&byKey(c.ref)?c.ref:MESES[MESES.length-1].key,y=r.slice(0,4),m=+r.slice(5);
+ switch(c.preset){
+  case 'mxano':return [kAdd(r,-12),r].map(one);
+  case 'mxaa':return [kAdd(r,-13),kAdd(r,-12),kAdd(r,-1),r].map(one);
+  case 'u3':case 'u6':case 'u12':{const n=+c.preset.slice(1);return serie(kAdd(r,1-n),r).map(one)}
+  case 'ano':return serie(y+'-01',r).map(one);
+  case 'tri':return grupo(serie(y+'-01',r),'tri');
+  case 'anos':return [+y-1,+y].map(Y=>({label:`${Y} (jan a ${MES[m-1].toLowerCase()})`,short:String(Y),keys:serie(Y+'-01',Y+'-'+String(m).padStart(2,'0'))}));
+  default:return [kAdd(r,-1),r].map(one);
+ }
+}
+const fmtC=(t,v)=>v==null||!Number.isFinite(v)?'<span class="pend">sem dado</span>':t==='brl'?brl0(v):t==='pct'?pct(v):t==='n5'?dec(v)+' / 5':int(v);
+const fmtCsv=(t,v)=>v==null||!Number.isFinite(v)?'':t==='pct'?dec(v*100,1)+'%':t==='n5'?dec(v):t==='brl'?dec(v,2):String(Math.round(v));
+
+function calcCmp(){
+ const c=S.cmp,cols=periodos(c).map(p=>{const ms=p.keys.map(byKey).filter(Boolean);return {...p,ms,missing:p.keys.length-ms.length}});
+ const mets=c.metrics.map(metDef).filter(Boolean);
+ const vals=mets.map(m=>cols.map(p=>p.ms.length?m[4](p.ms,c.src):null));
+ return {cols,mets,vals};
+}
+function rCmp(){
+ const el=$('#v-cmp');
+ if(!MESES.length){el.innerHTML=emptyHtml('Importe o DRE de pelo menos um mês para montar comparativos.');return}
+ const c=S.cmp,{cols,mets,vals}=calcCmp();
+ if(!mets.some(m=>m[0]===c.chart))c.chart=mets[0]?mets[0][0]:'';
+ const anos=[...new Set(MESES.map(d=>d.y))];
+ const selKeys=new Set(c.mode==='custom'?c.keys:cols.flatMap(p=>p.keys));
+ const chip=(attr,on,txt,cls='')=>`<button class="chip ${cls}" ${attr} aria-pressed="${on}">${txt}</button>`;
+ const opt=(v,t,cur)=>`<option value="${esc(v)}" ${cur===v?'selected':''}>${esc(t)}</option>`;
+ let h=`<p class="sub">Monte o comparativo: escolha os períodos e os indicadores. A configuração fica guardada e pode ser salva com um nome.</p>`;
+ // períodos
+ h+=`<div class="panel"><div class="phead"><h2>Períodos</h2></div>
+  ${SALVOS.length?`<div class="cgrp"><span class="clab">Comparativos salvos</span><div class="chips">${SALVOS.map((sv,i)=>`<span class="saved"><button class="chip" data-load="${i}">${esc(sv.nome)}</button><button class="del" data-unsave="${i}" aria-label="Apagar ${esc(sv.nome)}">×</button></span>`).join('')}</div></div>`:''}
+  <div class="cgrp"><span class="clab">Atalhos</span><div class="chips">${PRESETS.map(([k,n])=>chip(`data-preset="${k}"`,c.mode==='preset'&&c.preset===k,n)).join('')}</div></div>
+  <div class="cgrp crow">${c.mode==='preset'?`<div class="field"><label class="clab" for="cRef">Mês de referência</label><select id="cRef">${opt('','Último mês importado',c.ref)}${MESES.slice().reverse().map(d=>opt(d.key,label(d),c.ref)).join('')}</select></div>`:''}
+   ${c.mode==='custom'?`<div class="field"><label class="clab" for="cGrp">Colunas</label><select id="cGrp">${GRUPOS_P.map(([k,n])=>opt(k,n,c.group)).join('')}</select></div>`:''}</div>
+  <div class="cgrp"><span class="clab">${c.mode==='custom'?'Meses escolhidos':'Ou escolha os meses'}</span>${anos.map(y=>`<div class="ychips"><span class="yl">${y}</span>${MESES.filter(d=>d.y===y).map(d=>chip(`data-mk="${d.key}"`,selKeys.has(d.key),MES[d.m],'sm')).join('')}</div>`).join('')}
+   ${c.mode==='custom'?`<p style="margin:10px 0 0"><button class="link" id="cClear">Limpar seleção</button></p>`:''}</div>
+ </div>`;
+ // indicadores
+ const contas=contasDre();
+ h+=`<div class="panel"><div class="phead"><h2>Indicadores</h2></div>
+  ${CM.map(([gn,ms])=>`<div class="cgrp"><span class="clab">${gn}</span><div class="chips">${ms.map(m=>chip(`data-met="${m[0]}"`,c.metrics.includes(m[0]),m[1],'sm')).join('')}</div></div>`).join('')}
+  <div class="cgrp crow">
+   <div class="field"><label class="clab" for="cConta">Qualquer conta do DRE</label><select id="cConta"><option value="">Adicionar conta…</option>${[...contas].map(([gn,l])=>`<optgroup label="${gn}">${l.map(([id,n])=>`<option value="${esc(id)}" ${c.metrics.includes(id)?'disabled':''}>${esc(n)}</option>`).join('')}</optgroup>`).join('')}</select></div>
+   <div class="field"><label class="clab" for="cSrc">Números</label><select id="cSrc">${opt('auto','Realizado (ou previsto quando faltar)',c.src)}${opt('pag','Só realizado (pagamentos)',c.src)}${opt('venc','Só previsto (vencimentos)',c.src)}</select></div>
+   <div class="field"><label class="clab" for="cTo">Variação</label><select id="cTo">${opt('prev','Contra a coluna anterior',c.cmpTo)}${opt('first','Contra a primeira coluna',c.cmpTo)}${opt('none','Não mostrar',c.cmpTo)}</select></div>
+  </div></div>`;
+ // tabela
+ const dl=(i,j)=>{if(c.cmpTo==='none'||j===0)return '';const b=c.cmpTo==='first'?0:j-1,m=mets[i];const t=delta(vals[i][j],vals[i][b],m[3]||null,m[2]);return t?`<small>${t}</small>`:''};
+ h+=`<div class="panel"><div class="phead"><h2>Resultado</h2><div class="actions"><button class="btn" id="cCsv" ${mets.length&&cols.length?'':'disabled'}>Baixar para Excel</button></div></div>
+  ${!cols.length?'<p class="mut" style="margin:0">Escolha pelo menos um mês.</p>':!mets.length?'<p class="mut" style="margin:0">Escolha pelo menos um indicador.</p>':`<div class="tscroll"><table class="num cmp"><thead><tr><th>Indicador</th>${cols.map(p=>`<th>${esc(p.label)}${p.missing?`<small>${p.missing===p.keys.length?'não importado':`faltam ${p.missing} de ${p.keys.length} meses`}</small>`:''}</th>`).join('')}</tr></thead><tbody>
+  ${mets.map((m,i)=>`<tr data-row="${esc(m[0])}" class="${c.chart===m[0]?'sel':''}"><td>${esc(m[1])}<button class="rm" data-rm="${esc(m[0])}" aria-label="Tirar ${esc(m[1])}">×</button></td>${cols.map((p,j)=>`<td>${fmtC(m[2],vals[i][j])}${dl(i,j)}</td>`).join('')}</tr>`).join('')}
+  </tbody></table></div><p class="mut" style="font-size:13px;margin:12px 0 0">Clique numa linha para ver o gráfico dela.</p>`}
+  <div class="crow" style="margin-top:18px"><div class="field"><label class="clab" for="cNome">Salvar este comparativo</label><input id="cNome" placeholder="Ex.: Fechamento mensal" style="width:100%;height:38px;border-radius:9px;border:1px solid var(--line);padding:0 12px;background:var(--surface)"></div><button class="btn" id="cSave">Salvar</button></div>
+ </div>`;
+ // gráfico
+ const mi=mets.findIndex(m=>m[0]===c.chart);
+ if(mi>=0&&cols.length){
+  const m=mets[mi],mensal=cols.every(p=>p.keys.length===1),anosC=[...new Set(cols.map(p=>p.keys[0].slice(0,4)))];
+  const sobrepor=c.overlay&&mensal&&anosC.length>1;
+  let labels,series;
+  if(sobrepor){const cores=['#C3CAD6','#98A1B1','#5E6676'];labels=MES;
+   series=anosC.map((y,i)=>({nome:y,cor:i===anosC.length-1?'var(--orange)':cores[Math.max(0,cores.length-(anosC.length-1-i))],vals:MES.map((_,k)=>{const j=cols.findIndex(p=>p.keys[0]===y+'-'+String(k+1).padStart(2,'0'));return j<0?null:vals[mi][j]})}))}
+  else{labels=cols.map(p=>p.short);series=[{nome:m[1],cor:'var(--orange)',vals:vals[mi]}]}
+  h+=`<div class="panel"><div class="phead"><h2>Evolução: ${esc(m[1])}</h2>${mensal&&anosC.length>1?`<label class="chk"><input type="checkbox" id="cOver" ${c.overlay?'checked':''}> Sobrepor anos</label>`:''}</div>
+   ${chartCmp(labels,series,m[2],!sobrepor&&cols.length<=4)}
+   ${series.length>1?`<div class="legend">${series.map(s=>`<span><i style="background:${s.cor}"></i>${esc(s.nome)}</span>`).join('')}</div>`:''}</div>`;
+ }
+ el.innerHTML=h;
+ // eventos
+ const up=(f,foco)=>{f();gravar(K_CMP,S.cmp);rCmp();if(foco){const e=$(foco);if(e)e.focus()}};
+ el.querySelectorAll('[data-preset]').forEach(b=>b.onclick=()=>up(()=>{c.mode='preset';c.preset=b.dataset.preset},`[data-preset="${b.dataset.preset}"]`));
+ el.querySelectorAll('[data-mk]').forEach(b=>b.onclick=()=>up(()=>{
+  if(c.mode!=='custom'){c.keys=cols.flatMap(p=>p.keys).filter(byKey);c.mode='custom';c.group='mes'}
+  const k=b.dataset.mk;c.keys=c.keys.includes(k)?c.keys.filter(x=>x!==k):[...c.keys,k]},`[data-mk="${b.dataset.mk}"]`));
+ el.querySelectorAll('[data-met]').forEach(b=>b.onclick=()=>up(()=>{const k=b.dataset.met;c.metrics=c.metrics.includes(k)?c.metrics.filter(x=>x!==k):[...c.metrics,k]},`[data-met="${b.dataset.met}"]`));
+ el.querySelectorAll('[data-rm]').forEach(b=>b.onclick=e=>{e.stopPropagation();up(()=>{c.metrics=c.metrics.filter(x=>x!==b.dataset.rm)})});
+ el.querySelectorAll('tr[data-row]').forEach(tr=>tr.onclick=()=>up(()=>{c.chart=tr.dataset.row}));
+ const on=(id,f)=>{const e=$(id);if(e)e.onchange=ev=>up(()=>f(ev.target),id)};
+ on('#cRef',t=>c.ref=t.value);on('#cGrp',t=>c.group=t.value);on('#cSrc',t=>c.src=t.value);on('#cTo',t=>c.cmpTo=t.value);
+ on('#cConta',t=>{if(t.value&&!c.metrics.includes(t.value)){c.metrics=[...c.metrics,t.value];c.chart=t.value}});
+ on('#cOver',t=>c.overlay=t.checked);
+ const cl=$('#cClear');if(cl)cl.onclick=()=>up(()=>{c.keys=[]});
+ el.querySelectorAll('[data-load]').forEach(b=>b.onclick=()=>up(()=>{S.cmp=Object.assign({},CMP_PADRAO,JSON.parse(JSON.stringify(SALVOS[+b.dataset.load].cfg)))}));
+ el.querySelectorAll('[data-unsave]').forEach(b=>b.onclick=()=>{const sv=SALVOS[+b.dataset.unsave];if(!confirm(`Apagar o comparativo "${sv.nome}"?`))return;SALVOS.splice(+b.dataset.unsave,1);gravar(K_SALVOS,SALVOS);rCmp()});
+ $('#cSave').onclick=()=>{const nome=$('#cNome').value.trim();if(!nome){toast('Dê um nome ao comparativo.');$('#cNome').focus();return}
+  const i=SALVOS.findIndex(x=>x.nome.toLowerCase()===nome.toLowerCase()),item={nome,cfg:JSON.parse(JSON.stringify(S.cmp))};
+  i>=0?SALVOS[i]=item:SALVOS.push(item);gravar(K_SALVOS,SALVOS);toast(i>=0?`"${nome}" atualizado.`:`"${nome}" salvo.`);rCmp()};
+ const csv=$('#cCsv');if(csv)csv.onclick=()=>{
+  const q=v=>'"'+String(v).replace(/"/g,'""')+'"';
+  const linhas=[['Indicador',...cols.map(p=>p.label)].map(q).join(';'),...mets.map((m,i)=>[q(m[1]),...cols.map((p,j)=>q(fmtCsv(m[2],vals[i][j])))].join(';'))];
+  const blob=new Blob(['﻿'+linhas.join('\r\n')],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='comparativo.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000)};
+}
+function chartCmp(labels,series,t,barras){
+ const W=680,H=260,L=72,Rr=16,T=16,B=30,all=series.flatMap(s=>s.vals).filter(v=>v!=null&&Number.isFinite(v));
+ if(!all.length)return '<p class="mut" style="margin:0">Sem dados para o gráfico nesses períodos.</p>';
+ let mn=Math.min(0,...all),mx=Math.max(0,...all);const pad=(mx-mn)*.12||1;mx+=pad;if(mn<0)mn-=pad;
+ const n=labels.length,slot=(W-L-Rr)/n,X=j=>L+slot*(j+.5),Y=v=>T+(mx-v)/(mx-mn)*(H-T-B);
+ const tf=v=>t==='pct'?pct(v,0):t==='n5'?dec(v):t==='int'?int(v):(Math.abs(v)>=1000?'R$ '+dec(v/1000,0)+' mil':brl0(v));
+ let s=`<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Gráfico do comparativo">`;
  for(let k=0;k<=4;k++){const v=mn+(mx-mn)*k/4,y=Y(v);s+=`<line x1="${L}" x2="${W-Rr}" y1="${y}" y2="${y}" stroke="var(--line)"/><text x="${L-8}" y="${y+4}" text-anchor="end" font-size="11" fill="var(--muted)">${tf(v)}</text>`}
- pts.forEach(([l],j)=>s+=`<text x="${X(j)}" y="${H-8}" text-anchor="middle" font-size="11" fill="var(--muted)">${l}</text>`);
- s+=`<path d="${pts.map(([,v],j)=>(j?'L':'M')+X(j).toFixed(1)+' '+Y(v).toFixed(1)).join('')}" fill="none" stroke="var(--orange)" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>`;
- pts.forEach(([l,v],j)=>s+=`<circle cx="${X(j)}" cy="${Y(v)}" r="3.2" fill="var(--surface)" stroke="var(--orange)" stroke-width="2"><title>${l}: ${fmt(t,v)}</title></circle>`);
- s+='</svg>';
- $('#v-evo').innerHTML=`<p class="sub">Mês a mês, a partir dos DREs carregados.</p>
- <div class="panel"><div class="phead"><div class="chips" role="group" aria-label="Indicador do gráfico">${Object.entries(METRICS).map(([k,[l]])=>`<button class="chip" aria-pressed="${S.metric===k}" data-m="${k}">${l}</button>`).join('')}</div></div>${s}</div>`;
- document.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>{S.metric=b.dataset.m;rEvo();$(`[data-m="${S.metric}"]`).focus()});
+ if(mn<0)s+=`<line x1="${L}" x2="${W-Rr}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--muted)" stroke-dasharray="3 3"/>`;
+ labels.forEach((l,j)=>s+=`<text x="${X(j)}" y="${H-8}" text-anchor="middle" font-size="11" fill="var(--muted)">${esc(l)}</text>`);
+ if(barras){const bw=Math.min(56,slot*.55);
+  series[0].vals.forEach((v,j)=>{if(v==null||!Number.isFinite(v))return;const y0=Y(0),y1=Y(v);
+   s+=`<rect x="${X(j)-bw/2}" y="${Math.min(y0,y1)}" width="${bw}" height="${Math.max(1,Math.abs(y1-y0))}" rx="4" fill="${j===series[0].vals.length-1?'var(--orange)':'#C3CAD6'}"><title>${esc(labels[j])}: ${tf(v)}</title></rect><text x="${X(j)}" y="${Math.min(y0,y1)-6}" text-anchor="middle" font-size="11.5" font-weight="600" fill="var(--text)">${tf(v)}</text>`})}
+ else series.forEach(se=>{let d='',pen=false;se.vals.forEach((v,j)=>{if(v==null||!Number.isFinite(v)){pen=false;return}d+=(pen?'L':'M')+X(j).toFixed(1)+' '+Y(v).toFixed(1);pen=true});
+  s+=`<path d="${d}" fill="none" stroke="${se.cor}" stroke-width="${se.cor==='var(--orange)'?3:2.2}" stroke-linejoin="round" stroke-linecap="round"/>`;
+  se.vals.forEach((v,j)=>{if(v!=null&&Number.isFinite(v))s+=`<circle cx="${X(j)}" cy="${Y(v)}" r="3.2" fill="var(--surface)" stroke="${se.cor}" stroke-width="2"><title>${esc(se.nome)}, ${esc(labels[j])}: ${tf(v)}</title></circle>`})});
+ return s+'</svg>';
 }
 
 go(S.view);
