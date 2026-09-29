@@ -85,14 +85,13 @@ h2{font-size:16px;margin:0;font-weight:700;letter-spacing:-.01em}
 .kpi .lab{font-size:13px;color:var(--muted);font-weight:500}
 .kpi .val{font-size:26px;font-weight:800;letter-spacing:-.02em;margin:2px 0 4px;line-height:1.15}
 .kpi .note{font-size:12.5px;color:var(--muted)}
-.kpi.hero{background:var(--ink);color:#fff}
-.kpi.hero .lab,.kpi.hero .note{color:var(--inkText)}
+.kpi.hero{background:var(--surface);color:var(--text)}
+.kpi.hero .lab,.kpi.hero .note{color:var(--muted)}
 .delta{font-size:12.5px;font-weight:600;display:inline-flex;align-items:center;gap:3px}
 .delta.good{color:var(--pos)}.delta.bad{color:var(--neg)}.delta.flat{color:var(--muted)}
-.kpi.hero .delta.good{color:#6FD3A4}.kpi.hero .delta.bad{color:#FF9A86}
-.band{position:relative;height:10px;border-radius:5px;margin:12px 0 6px;background:linear-gradient(90deg,#4A2A26 0 33.3%,#4A3D22 33.3% 50%,#2E4230 50% 66.6%,#1E4A34 66.6% 100%)}
+.band{position:relative;height:10px;border-radius:5px;margin:12px 0 6px;background:linear-gradient(90deg,var(--negSoft) 0 33.3%,var(--warnSoft) 33.3% 50%,#E6EEDC 50% 66.6%,var(--posSoft) 66.6% 100%)}
 .band i{position:absolute;top:-4px;width:4px;height:18px;border-radius:2px;background:var(--orange);transform:translateX(-2px)}
-.bandlab{display:flex;justify-content:space-between;font-size:11px;color:var(--inkText)}
+.bandlab{display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}
 
 .grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;align-items:start}
 
@@ -462,7 +461,7 @@ function rMes(){
  if(falta)h+=strip(`data-imp-tipo="${falta}"`,`importar os ${TIPOS[falta][0].toLowerCase()} de ${ml}`);
  else if(!hasMan(d))h+=strip('data-go="man"',`preencher os indicadores manuais de ${ml}`);
  const ger=r=>esc(r.gerado||'data não informada');
- h+=`<p class="sub">${d.pag&&d.pag.parcial?'Mês em andamento. ':''}${d.venc&&d.pag?`Previsto: vencimentos gerados em ${ger(d.venc)}. Realizado: pagamentos gerados em ${ger(d.pag)}.`:d.venc?`Só o relatório de vencimentos foi importado (gerado em ${ger(d.venc)}), então os números abaixo são o previsto.`:`Realizado: pagamentos gerados em ${ger(d.pag)}. Falta o relatório de vencimentos para comparar com o previsto.`}</p>`;
+ h+=`<p class="sub">${d.pag&&d.pag.parcial?'Mês em andamento. ':''}${d.venc&&d.pag?'Previsto x realizado.':d.venc?'Números previstos (só vencimentos importados).':'Números realizados.'} Atualizado em ${ger(d.pag||d.venc).slice(0,10)}.</p>`;
  const body=S.mesTab==='dre'?dreHtml(d):S.mesTab==='ind'?indHtml(d,p):resumoHtml(d,p);
  h+=`<div id="mesPanel" role="tabpanel" aria-labelledby="tab-${S.mesTab}">${body}</div>`;
  $('#v-mes').innerHTML=h;
@@ -483,14 +482,14 @@ function resumoHtml(d,p0){
   <div class="kpi hero"><div class="lab">Margem líquida operacional${prev?' prevista':''}</div><div class="val num">${pct(mg)}</div>${p?delta(mg,margem(p),'up','pct'):''}
    <div class="band" aria-hidden="true"><i style="left:${pos}%"></i></div><div class="bandlab"><span>0%</span><span>meta 10%</span><span>15%</span><span>ideal 20%</span><span>30%</span></div></div>
   <div class="kpi"><div class="lab">Faturamento${prev?' previsto':''}</div><div class="val num">${brl0(fat)}</div>${p?delta(fat,fatOp(p),'up'):''}${d.venc&&d.pag?`<div class="note">Previsto ${brl0(fatOp(d.venc))}, ${pct(fat/fatOp(d.venc))} recebido</div>`:''}</div>
-  <div class="kpi"><div class="lab">Lucro operacional${prev?' previsto':''}</div><div class="val num ${lo<0?'neg':''}">${brl0(lo)}</div>${p?delta(lo,lucroOp(p),'up'):'<div class="note">Antes de investimentos e saídas não operacionais</div>'}</div>
+  <div class="kpi"><div class="lab">Lucro operacional${prev?' previsto':''}</div><div class="val num ${lo<0?'neg':''}">${brl0(lo)}</div>${p?delta(lo,lucroOp(p),'up'):''}</div>
   <div class="kpi"><div class="lab">Resultado final${prev?' previsto':''}</div><div class="val num ${rf<0?'neg':''}">${brl0(rf)}</div>${p?delta(rf,resultado(p),'up'):d.resEllo!=null&&Math.abs(d.resEllo-rf)<.01?'<div class="note">Confere com o resultado do ELLO</div>':''}</div>
  </div>`;
  const rec=d.dre.rec.map(s=>[s[0],subTot(s)]).sort((a,b)=>b[1]-a[1]);
  const desp=['cv','df','inv','mno'].flatMap(g=>d.dre[g].map(s=>[s[0],subTot(s)])).sort((a,b)=>b[1]-a[1]).slice(0,6);
- h+=`<div class="grid2"><div class="panel"><div class="phead"><h2>${prev?'De onde vem a receita prevista':'De onde veio a receita'}</h2><span class="tag auto">Automático</span></div>${barsHtml(rec,fat)}</div>
- <div class="panel"><div class="phead"><h2>${prev?'Para onde vai o dinheiro':'Para onde foi o dinheiro'}</h2><span class="tag auto">Automático</span></div>${barsHtml(desp,fat)}</div></div>`;
- h+=`<div class="panel reading"><div class="phead"><h2>Leitura do mês</h2><span class="tag auto">Calculada a partir do DRE</span></div>${leitura(d)}</div>`;
+ h+=`<div class="grid2"><div class="panel"><div class="phead"><h2>${prev?'De onde vem a receita prevista':'De onde veio a receita'}</h2></div>${barsHtml(rec,fat)}</div>
+ <div class="panel"><div class="phead"><h2>${prev?'Para onde vai o dinheiro':'Para onde foi o dinheiro'}</h2></div>${barsHtml(desp,fat)}</div></div>`;
+ h+=`<div class="panel reading"><div class="phead"><h2>Leitura do mês</h2></div>${leitura(d)}</div>`;
  return h;
 }
 function leitura(d){
@@ -514,7 +513,7 @@ function dreHtml(d){
  if(d.venc&&d.pag)return dreCmp(d);
  const fat=fatOp(d);
  const cell=v=>`<td>${brl(v)}</td><td class="mut">${pct(v/fat)}</td>`;
- let h=`<div class="panel"><div class="phead"><h2>DRE</h2><span class="tag auto">ELLO</span></div><div class="tscroll"><table class="num dre"><thead><tr><th>Conta</th><th>${TIPOS[d.base][1]}</th><th>% do faturamento</th></tr></thead><tbody>`;
+ let h=`<div class="panel"><div class="phead"><h2>DRE</h2></div><div class="tscroll"><table class="num dre"><thead><tr><th>Conta</th><th>${TIPOS[d.base][1]}</th><th>% do faturamento</th></tr></thead><tbody>`;
  GRUPOS.forEach(([g,n])=>{
   const on=S.open.has(g);
   h+=`<tr class="grp ${on?'open':''}" data-g="${g}"><td><button class="rowbtn" aria-expanded="${on}">${n}</button></td>${cell(G(d,g))}</tr>`;
@@ -533,7 +532,7 @@ function dreCmp(d){
  const its=(g,sg)=>uniq([V,P].flatMap(r=>((r.dre[g]||[]).find(x=>x[0]===sg)||[,[]])[1].map(x=>x[0])));
  const iv=(r,g,sg,k)=>{const s=(r.dre[g]||[]).find(x=>x[0]===sg),it=s&&s[1].find(x=>x[0]===k);return it?it[1]:0};
  const cells=(pv,rv,sign)=>{const df=rv-pv,c=Math.abs(df)<.005?'':((df>=0)===(sign>0)?'pos':'neg');return `<td>${brl(pv)}</td><td>${brl(rv)}</td><td class="${c}">${Math.abs(df)<.005?'':(df>0?'+':'')+brl(df)}</td><td class="mut">${pct(rv/fat)}</td>`};
- let h=`<div class="panel"><div class="phead"><h2>DRE previsto x realizado</h2><span class="tag auto">ELLO</span></div><div class="tscroll"><table class="num dre"><thead><tr><th>Conta</th><th>Previsto</th><th>Realizado</th><th>Diferença</th><th>% do faturamento</th></tr></thead><tbody>`;
+ let h=`<div class="panel"><div class="phead"><h2>DRE previsto x realizado</h2></div><div class="tscroll"><table class="num dre"><thead><tr><th>Conta</th><th>Previsto</th><th>Realizado</th><th>Diferença</th><th>% do faturamento</th></tr></thead><tbody>`;
  GRUPOS.forEach(([g,n])=>{
   const on=S.open.has(g),sign=g==='rec'?1:-1;
   h+=`<tr class="grp ${on?'open':''}" data-g="${g}"><td><button class="rowbtn" aria-expanded="${on}">${n}</button></td>${cells(G(V,g),G(P,g),sign)}</tr>`;
@@ -573,20 +572,18 @@ function indHtml(d,p0){
 /* ---------- importar DRE ---------- */
 function rImp(){
  const lista=MESES.slice().reverse();
- let h=`<p class="sub">Cada mês entra pelo DRE exportado do ELLO. O app lê só os totais por conta; nomes de alunos e fornecedores do arquivo não são guardados.</p>
- <div class="panel"><div class="phead"><h2>Importar DRE do ELLO</h2></div>
-  <ol class="steps"><li>No ELLO, abra Relatórios gerenciais, Financeiro, DRE.</li><li>Gere o relatório do mês por vencimento ou por pagamento e exporte para Excel.</li><li>Aqui, diga qual dos dois é, confira o mês e envie o arquivo. Pode importar de novo para atualizar.</li></ol>
-  <fieldset class="tipo"><legend>1. O que você está importando?</legend><div class="opts">
-   <label class="opt"><input type="radio" name="tipo" value="venc" ${S.impTipo==='venc'?'checked':''}><span><b>Relatório de vencimentos</b><small>O que estava previsto receber e pagar no mês. Vira o previsto.</small></span></label>
-   <label class="opt"><input type="radio" name="tipo" value="pag" ${S.impTipo==='pag'?'checked':''}><span><b>Relatório de pagamentos</b><small>O que de fato entrou e saiu no mês. Vira o realizado.</small></span></label>
+ let h=`<p class="sub">Exporte o DRE do mês no ELLO (Relatórios gerenciais, Financeiro, DRE) e envie aqui.</p>
+ <div class="panel">
+  <fieldset class="tipo"><legend>Tipo de relatório</legend><div class="opts">
+   <label class="opt"><input type="radio" name="tipo" value="venc" ${S.impTipo==='venc'?'checked':''}><span><b>Vencimentos</b><small>O previsto do mês</small></span></label>
+   <label class="opt"><input type="radio" name="tipo" value="pag" ${S.impTipo==='pag'?'checked':''}><span><b>Pagamentos</b><small>O realizado do mês</small></span></label>
   </div></fieldset>
-  <div class="qmes"><label class="qlab" for="impMes">2. De qual mês?</label><select class="sel" id="impMes">${mesOpts()}</select></div>
-  <p class="qlab">3. Envie o arquivo</p>
-  <div class="drop ${S.impTipo?'':'off'}" id="drop"><p>${S.impTipo?'Arraste o arquivo para cá ou escolha no computador.':'Escolha primeiro se é o relatório de vencimentos ou de pagamentos.'}</p><label class="btn pri" for="impF">Escolher arquivo</label><input type="file" id="impF" accept=".xls,.xlsx,.html,.htm"></div>
+  <div class="qmes"><label class="qlab" for="impMes">Mês</label><select class="sel" id="impMes">${mesOpts()}</select></div>
+    <div class="drop ${S.impTipo?'':'off'}" id="drop"><p>${S.impTipo?'Arraste o arquivo para cá ou escolha no computador.':'Escolha primeiro se é o relatório de vencimentos ou de pagamentos.'}</p><label class="btn pri" for="impF">Escolher arquivo</label><input type="file" id="impF" accept=".xls,.xlsx,.html,.htm"></div>
  </div>
  <div id="impPrev"></div>`;
  if(lista.length)h+=`<div class="panel"><div class="phead"><h2>Meses importados</h2></div><div class="mlist">${lista.map(d=>`<div class="mrow"><div><b>${label(d)}</b>${d.pag&&d.pag.parcial?' <span class="tag man">Parcial</span>':''}<small>Vencimentos: ${d.venc?'importado, gerado em '+esc(d.venc.gerado||'data não informada'):'falta importar'}.</small><small>Pagamentos: ${d.pag?'importado, gerado em '+esc(d.pag.gerado||'data não informada'):'falta importar'}.</small></div><div class="actions"><button class="btn" data-ver="${d.i}">Ver mês</button><button class="btn" data-del="${d.i}">Remover</button></div></div>`).join('')}</div></div>`;
- h+=`<div class="panel"><div class="phead"><h2>Cópia de segurança</h2></div><p class="sub" style="margin-bottom:16px">Os dados ficam só neste navegador. Baixe uma cópia para guardar ou para abrir em outro computador ou celular.</p>
+ h+=`<div class="panel"><div class="phead"><h2>Cópia de segurança</h2></div><p class="sub" style="margin-bottom:16px">Os dados ficam neste navegador. Baixe uma cópia para guardar ou usar em outro aparelho.</p>
   <div class="actions"><button class="btn" id="bkOut" ${MESES.length?'':'disabled'}>Baixar cópia</button><label class="btn" for="bkIn">Restaurar cópia</label><input type="file" id="bkIn" accept=".json" style="position:absolute;width:1px;height:1px;opacity:0"></div></div>`;
  $('#v-imp').innerHTML=h;
  const dz=$('#drop');
@@ -651,7 +648,7 @@ function rMan(){
  const d=MESES[S.mi],M=man(d);
  const F=([id,l])=>`<div class="field"><label for="f-${id}">${l}</label><input id="f-${id}" inputmode="decimal" autocomplete="off" value="${M[id]==null?'':String(M[id]).replace('.',',')}"></div>`;
  $('#v-man').innerHTML=`<p class="sub">O que não vem do DRE do ELLO. Deixe em branco o que ainda não tiver; dá para voltar e completar depois.</p>
- ${MAN_FIELDS.map(([n,fs])=>`<div class="panel"><div class="phead"><h2>${n}</h2><span class="tag man">Manual</span></div><div class="fgrid">${fs.map(F).join('')}</div></div>`).join('')}
+ ${MAN_FIELDS.map(([n,fs])=>`<div class="panel"><div class="phead"><h2>${n}</h2></div><div class="fgrid">${fs.map(F).join('')}</div></div>`).join('')}
  <div class="formfoot"><button class="btn pri" id="manSave">Salvar indicadores de ${MESL[d.m].toLowerCase()}</button><p>Os dados ficam salvos neste navegador.</p></div>`;
  $('#manSave').onclick=()=>{
   const vals={};let bad=null;
